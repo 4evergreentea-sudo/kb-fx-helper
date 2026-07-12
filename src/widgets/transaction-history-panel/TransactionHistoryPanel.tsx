@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useTransactionHistory } from '../../features/add-transaction'
 import { exportTransactionsToCsv } from '../../features/export-transactions-csv'
+import { ConsultationRecordForm } from './ConsultationRecordForm'
 import { getSyncStatusLabel, getSyncStatusVariant } from './lib/getSyncStatusLabel'
+import { selectRecordsForCsvExport } from './lib/selectRecordsForCsvExport'
 import { TransactionRow } from './TransactionRow'
 
 const SYNC_STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -10,6 +12,9 @@ const SYNC_STATUS_BADGE_CLASSES: Record<string, string> = {
   success: 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400',
   error: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400',
 }
+
+const inputClassName =
+  'mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
 
 export function TransactionHistoryPanel() {
   const {
@@ -22,6 +27,10 @@ export function TransactionHistoryPanel() {
     retrySync,
   } = useTransactionHistory()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [keyword, setKeyword] = useState('')
+
+  const filteredRecords = selectRecordsForCsvExport(transactions, keyword)
+
   const syncStatusLabel = getSyncStatusLabel({
     isSupabaseEnabled,
     isSyncing,
@@ -43,10 +52,14 @@ export function TransactionHistoryPanel() {
   }
 
   function handleExportCsv() {
-    const outcome = exportTransactionsToCsv(transactions)
+    const outcome = exportTransactionsToCsv(filteredRecords)
     setErrorMessage(
       outcome.success ? null : outcome.message ?? 'CSV로 내보내지 못했습니다.',
     )
+  }
+
+  function handleResetKeyword() {
+    setKeyword('')
   }
 
   return (
@@ -57,7 +70,7 @@ export function TransactionHistoryPanel() {
         </h2>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            총 {transactions.length}건
+            전체 {transactions.length}건
           </span>
           <button
             type="button"
@@ -95,13 +108,48 @@ export function TransactionHistoryPanel() {
         </p>
       )}
 
+      <div className="mt-4">
+        <ConsultationRecordForm />
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <label htmlFor="transactionSearchKeyword" className="sr-only">
+          거래기록 검색
+        </label>
+        <input
+          id="transactionSearchKeyword"
+          type="text"
+          placeholder="고객명, 통화, 메모로 검색"
+          className={`${inputClassName} sm:max-w-xs`}
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+        />
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            검색 결과 {filteredRecords.length}건
+          </span>
+          <button
+            type="button"
+            onClick={handleResetKeyword}
+            disabled={keyword === ''}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            검색어 초기화
+          </button>
+        </div>
+      </div>
+
       {transactions.length === 0 ? (
         <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
           아직 저장된 거래가 없습니다. 환전을 계산한 뒤 저장해보세요.
         </p>
+      ) : filteredRecords.length === 0 ? (
+        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+          검색 결과가 없습니다.
+        </p>
       ) : (
         <ul className="mt-4 flex flex-col gap-2">
-          {transactions.map((transaction) => (
+          {filteredRecords.map((transaction) => (
             <TransactionRow
               key={transaction.id}
               transaction={transaction}

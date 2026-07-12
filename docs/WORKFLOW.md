@@ -103,16 +103,26 @@ graph LR
 ## 4. AI 협업 Workflow
 
 ```mermaid
-flowchart TD
-    Cursor[Cursor] --> GitHub[GitHub] --> CodeRabbit[CodeRabbit] --> Vitest[Vitest] --> Review[Review] --> Merge[Merge]
+flowchart LR
+    Plan[Plan] --> Test[Test] --> Implement[Implement] --> Check["npm run check"]
+    Check --> Branch["Feature Branch"] --> PR["Pull Request"] --> CRB["CodeRabbit Review"]
+    CRB --> Fix["수정 반영"] --> CI["CI 통과"] --> Merge[Merge] --> Vercel["Vercel 자동 배포"]
+    Fix -.실패 시 재검토.-> CRB
 ```
 
-- **Cursor**: Cursor Rules + MCP 컨텍스트로 코드를 생성/수정한다.
-- **GitHub**: 변경 사항을 `feature/*` 브랜치에서 Pull Request로 올린다.
-- **CodeRabbit**: PR 생성 즉시 AI가 FSD 규칙 위반, public API 우회 등을 1차 리뷰한다.
-- **Vitest**: CI에서 단위/회귀 테스트를 자동 실행한다.
-- **Review**: CodeRabbit 코멘트 반영 여부와 로직을 팀원이 최종 확인한다.
-- **Merge**: 리뷰 승인 + CI 통과 후 `main`에 병합한다.
+| 단계 | 도구/명령 | 설명 |
+|---|---|---|
+| Plan | Cursor + 사람 | 요구사항을 분석해 변경 범위, 타입 구조, migration 방식을 먼저 계획하고 승인받는다 |
+| Test | Vitest(TDD) | 새 도메인/유스케이스는 실패하는 테스트를 먼저 작성한다 |
+| Implement | Cursor Rules + MCP | `.cursor/rules/*.mdc` 기반으로 FSD 레이어별 코드를 작성한다 |
+| `npm run check` | oxlint, `scripts/check-architecture.mjs`, `tsc -b`, Vitest, Vite build | 로컬에서 커밋 전 lint → FSD 아키텍처 검사 → 타입체크 → 테스트 → 빌드를 한 번에 실행한다 |
+| Feature Branch | Git | `feature/*`, `fix/*` 접두사 브랜치에서 작업한다(`main` 직접 커밋 금지) |
+| Pull Request | GitHub | 변경 목적과 8장 DoD 체크리스트를 PR 본문에 기재한다 |
+| CodeRabbit Review | CodeRabbit(`.coderabbit.yaml`) | PR 생성 즉시 AI가 FSD 규칙 위반, public API 우회, 보안/CSV/Supabase 규칙 등을 1차 리뷰한다 |
+| 수정 반영 | Cursor | 리뷰 코멘트를 반영하고, 필요하면 CodeRabbit이 다시 리뷰한다(request changes workflow) |
+| CI 통과 | GitHub Actions(`.github/workflows/ci.yml`) | PR과 `main` push마다 `npm run check`를 실행해 통과해야 병합할 수 있다 |
+| Merge | GitHub | 리뷰 승인 + CI 통과 후 `main`에 병합한다(Squash merge) |
+| Vercel 자동 배포 | Vercel | `main` 병합 시 자동으로 프로덕션에 배포된다 |
 
 전체 도구 체인(NotebookLM~Supabase/Vercel)에서의 위치는 상단 [한눈에 보는 AI 협업 Workflow](#한눈에-보는-ai-협업-workflow) 표를 참고한다.
 
@@ -137,7 +147,10 @@ flowchart LR
 | TDD | 구현 전 실패하는 테스트로 요구사항을 명세 | Vitest | 새 도메인/계산 로직 작성 전 |
 | 단위 테스트 | 순수 함수(계산, 검증)와 경계값 검증 | Vitest | 로컬 개발 중, PR 생성 전 |
 | Regression Test | 버그 재현 테스트 추가, 기존 테스트 유지 | Vitest | 버그 수정 시, CI 전체 실행 |
+| 아키텍처 검사 | FSD 레이어/슬라이스/public API 위반 자동 검출 | `scripts/check-architecture.mjs`(`npm run arch:check`) | 커밋 전 로컬, CI |
 | Build Test | 타입/빌드 오류 확인 | `tsc -b && vite build` | PR 생성 시, CI |
+
+> `npm run check` 한 번으로 `lint → arch:check → typecheck → test:run → build`를 순서대로 실행할 수 있다(로컬/CI 공용, `.github/workflows/ci.yml`이 동일 명령을 사용한다).
 
 ## 7. 배포
 

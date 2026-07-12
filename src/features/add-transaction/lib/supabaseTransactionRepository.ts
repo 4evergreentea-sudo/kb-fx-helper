@@ -1,5 +1,4 @@
 import { getSupabaseClient } from '../../../shared/api'
-import { isTransaction } from '../../../entities/transaction'
 import type { Transaction } from '../../../entities/transaction'
 import { fromTransactionRow, toTransactionRow } from './transactionSupabaseMapper'
 import type { TransactionRow } from './transactionSupabaseMapper'
@@ -19,9 +18,10 @@ export interface FetchTransactionsResult {
 }
 
 /**
- * 현재 로그인된 사용자(RLS로 제한됨)의 거래기록을 최신순으로 조회한다.
+ * 현재 로그인된 사용자(RLS로 제한됨)의 거래기록(환전/해외송금/상담)을 최신순으로 조회한다.
  * Supabase가 설정되지 않았거나 조회에 실패하면 success: false와 빈 배열을 반환한다
  * (병합/fallback 여부 판단은 호출하는 쪽의 책임).
+ * 형태가 올바르지 않은 row는 결과에서 제외하고 콘솔에 경고를 남긴다(개인정보는 로그에 남기지 않음).
  */
 export async function fetchAllTransactions(): Promise<FetchTransactionsResult> {
   const client = getSupabaseClient()
@@ -41,17 +41,26 @@ export async function fetchAllTransactions(): Promise<FetchTransactionsResult> {
       return { success: false, transactions: [] }
     }
 
-    return {
-      success: true,
-      transactions: (data as TransactionRow[]).map(fromTransactionRow).filter(isTransaction),
+    const transactions: Transaction[] = []
+
+    for (const row of data as TransactionRow[]) {
+      const parsed = fromTransactionRow(row)
+
+      if (parsed) {
+        transactions.push(parsed)
+      } else {
+        console.warn('형식이 올바르지 않은 거래기록 행을 제외합니다', { id: row.id })
+      }
     }
+
+    return { success: true, transactions }
   } catch (error) {
     console.error('거래기록 원격 조회 실패', error)
     return { success: false, transactions: [] }
   }
 }
 
-/** 거래 1건을 user_id와 함께 원격에 추가한다 */
+/** 거래기록(환전/해외송금/상담) 1건을 user_id와 함께 원격에 추가한다 */
 export async function insertTransaction(
   transaction: Transaction,
   userId: string,

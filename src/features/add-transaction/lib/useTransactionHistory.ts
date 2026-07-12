@@ -2,12 +2,16 @@ import { useEffect } from 'react'
 import { useSyncExternalStore } from 'react'
 import type { Transaction } from '../../../entities/transaction'
 import type {
-  ExchangeCalculatorInput,
-  ExchangeCalculatorResult,
-} from '../../calculate-exchange'
-import type { SyncState, TransactionOperationResult } from '../model/types'
+  AddConsultationInput,
+  AddExchangeTransactionInput,
+  AddRemittanceTransactionInput,
+  SyncState,
+  TransactionOperationResult,
+} from '../model/types'
 import { getSyncStatusSnapshot, subscribeSyncStatus } from './syncStatusStore'
 import {
+  addConsultationRecord,
+  addRemittanceTransaction,
   addTransaction,
   getSnapshot,
   initSync,
@@ -18,10 +22,10 @@ import {
 
 export interface UseTransactionHistoryResult extends SyncState {
   transactions: Transaction[]
-  addTransaction: (
-    input: ExchangeCalculatorInput,
-    result: ExchangeCalculatorResult,
-  ) => TransactionOperationResult
+  addTransaction: (input: AddExchangeTransactionInput) => TransactionOperationResult
+  addRemittanceTransaction: (input: AddRemittanceTransactionInput) => TransactionOperationResult
+  /** widgets/transaction-history-panel의 ConsultationRecordForm이 호출한다 */
+  addConsultationRecord: (input: AddConsultationInput) => TransactionOperationResult
   removeTransaction: (id: string) => TransactionOperationResult
   /** 사용자가 누르는 수동 재동기화 버튼에서 호출한다 */
   retrySync: () => void
@@ -52,5 +56,13 @@ export function useTransactionHistory(): UseTransactionHistoryResult {
     }
   }, [])
 
-  return { transactions, addTransaction, removeTransaction, retrySync, ...syncState }
+  return {
+    transactions,
+    addTransaction,
+    addRemittanceTransaction,
+    addConsultationRecord,
+    removeTransaction,
+    retrySync,
+    ...syncState,
+  }
 }

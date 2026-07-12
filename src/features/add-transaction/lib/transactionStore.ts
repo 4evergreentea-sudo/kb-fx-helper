@@ -1,12 +1,22 @@
-import { createTransaction, parseTransactions } from '../../../entities/transaction'
+import {
+  createConsultationRecord,
+  createExchangeTransaction,
+  createRemittanceTransaction,
+  parseTransactions,
+  validateConsultationAmount,
+  validateConsultationMemo,
+  validateCustomerName,
+  validateRemittanceAmounts,
+} from '../../../entities/transaction'
 import type { Transaction } from '../../../entities/transaction'
 import { isSupabaseConfigured } from '../../../shared/config'
 import { readJSON, writeJSON } from '../../../shared/lib'
 import type {
-  ExchangeCalculatorInput,
-  ExchangeCalculatorResult,
-} from '../../calculate-exchange'
-import type { TransactionOperationResult } from '../model/types'
+  AddConsultationInput,
+  AddExchangeTransactionInput,
+  AddRemittanceTransactionInput,
+  TransactionOperationResult,
+} from '../model/types'
 import * as pendingSyncStore from './pendingSyncStore'
 import { ensureAnonymousSession } from './supabaseAuth'
 import {
@@ -59,34 +69,9 @@ export function getSnapshot(): Transaction[] {
   return ensureLoaded()
 }
 
-/**
- * 계산이 유효한 경우에만 거래를 저장한다.
- * localStorage 저장에 실패하면 메모리 상태도 변경하지 않아 화면과 저장소 상태가 어긋나지 않는다.
- * localStorage 저장에 성공하면(=UI에는 이미 반영됨) Supabase 추가를 best-effort로 시도하고,
- * 실패하면 pending add 목록에 기록해 다음 동기화에서 재시도한다.
- */
-export function addTransaction(
-  input: ExchangeCalculatorInput,
-  result: ExchangeCalculatorResult,
-): TransactionOperationResult {
-  if (!result.validation.valid || result.appliedRate === null || result.krwAmount === null) {
-    return {
-      success: false,
-      message: '계산이 유효하지 않아 거래를 저장할 수 없습니다.',
-    }
-  }
-
+/** 새 거래(환전/해외송금/상담 공통)를 목록 맨 앞에 추가하고 localStorage에 반영한다 */
+function persistNewTransaction(transaction: Transaction): TransactionOperationResult {
   const current = ensureLoaded()
-  const transaction = createTransaction({
-    currencyCode: input.currencyCode,
-    transactionType: input.transactionType,
-    amount: input.amount,
-    baseRate: input.baseRate,
-    spreadRate: input.spreadRate,
-    preferentialRate: input.preferentialRate,
-    appliedRate: result.appliedRate,
-    krwAmount: result.krwAmount,
-  })
   const next = [transaction, ...current]
 
   if (!writeJSON(STORAGE_KEY, next)) {
@@ -96,9 +81,152 @@ export function addTransaction(
   transactions = next
   notify()
 
+  return { success: true }
+}
+
+/**
+ * 고객명이 입력된 환전 거래를 저장한다.
+ * 고객명이 비어 있거나 공백뿐이면 저장하지 않고 실패 메시지를 반환한다.
+ * customerName은 trim된 값으로, memo는 없으면 빈 문자열로 정규화되어 저장된다.
+ * localStorage 저장에 성공하면(=UI에는 이미 반영됨) Supabase 추가를 best-effort로 시도하고,
+ * 실패하면 pending add 목록에 기록해 다음 동기화에서 재시도한다.
+ */
+export function addTransaction(input: AddExchangeTransactionInput): TransactionOperationResult {
+  const customerName = input.customerName.trim()
+  const nameCheck = validateCustomerName(customerName)
+
+  if (!nameCheck.valid) {
+    return { success: false, message: nameCheck.message }
+  }
+
+  const transaction = createExchangeTransaction({
+    recordType: 'exchange',
+    customerName,
+    currencyCode: input.currencyCode,
+    transactionType: input.transactionType,
+    amount: input.amount,
+    baseRate: input.baseRate,
+    spreadRate: input.spreadRate,
+    preferentialRate: input.preferentialRate,
+    appliedRate: input.appliedRate,
+    krwAmount: input.krwAmount,
+    memo: input.memo ?? '',
+  })
+
+  const outcome = persistNewTransaction(transaction)
+
+  if (!outcome.success) {
+    return outcome
+  }
+
   void syncTransactionAddition(transaction)
 
-  return { success: true }
+  return outcome
+}
+
+/**
+ * 고객명이 입력된 해외송금 거래를 저장한다.
+ * 고객명이 비어 있거나 공백뿐이면, 또는 계산된 금액 필드가 유효 범위를 벗어나면
+ * 저장하지 않고 실패 메시지를 반환한다.
+ * customerName은 trim된 값으로, memo는 없으면 빈 문자열로 정규화되어 저장된다.
+ * 계산 자체(features/calculate-remittance)에는 의존하지 않으며, 이미 계산된 결과를
+ * Widget이 AddRemittanceTransactionInput으로 조립해 전달하는 것을 전제로 한다.
+ * localStorage 저장에 성공하면 addTransaction과 동일하게 Supabase 추가를 best-effort로 시도한다.
+ */
+export function addRemittanceTransaction(
+  input: AddRemittanceTransactionInput,
+): TransactionOperationResult {
+  const customerName = input.customerName.trim()
+  const nameCheck = validateCustomerName(customerName)
+
+  if (!nameCheck.valid) {
+    return { success: false, message: nameCheck.message }
+  }
+
+  const amountsCheck = validateRemittanceAmounts({
+    amount: input.amount,
+    appliedRate: input.appliedRate,
+    principalKRW: input.principalKRW,
+    remittanceFee: input.remittanceFee,
+    cableFee: input.cableFee,
+    totalWithdrawalKRW: input.totalWithdrawalKRW,
+  })
+
+  if (!amountsCheck.valid) {
+    return { success: false, message: amountsCheck.message }
+  }
+
+  const transaction = createRemittanceTransaction({
+    recordType: 'remittance',
+    customerName,
+    currencyCode: input.currencyCode,
+    amount: input.amount,
+    baseRate: input.baseRate,
+    spreadRate: input.spreadRate,
+    preferentialRate: input.preferentialRate,
+    appliedRate: input.appliedRate,
+    principalKRW: input.principalKRW,
+    remittanceFee: input.remittanceFee,
+    cableFee: input.cableFee,
+    totalWithdrawalKRW: input.totalWithdrawalKRW,
+    memo: input.memo ?? '',
+  })
+
+  const outcome = persistNewTransaction(transaction)
+
+  if (!outcome.success) {
+    return outcome
+  }
+
+  void syncTransactionAddition(transaction)
+
+  return outcome
+}
+
+/**
+ * 고객명·외화금액·메모가 입력된 상담 기록을 저장한다.
+ * 고객명 또는 메모가 비어 있거나 공백뿐이거나, 외화금액이 0보다 크지 않으면
+ * 저장하지 않고 실패 메시지를 반환한다.
+ * localStorage 저장에 성공하면 addTransaction과 동일하게 Supabase 추가를 best-effort로 시도한다.
+ */
+export function addConsultationRecord(input: AddConsultationInput): TransactionOperationResult {
+  const customerName = input.customerName.trim()
+  const nameCheck = validateCustomerName(customerName)
+
+  if (!nameCheck.valid) {
+    return { success: false, message: nameCheck.message }
+  }
+
+  const amountCheck = validateConsultationAmount(input.amount)
+
+  if (!amountCheck.valid) {
+    return { success: false, message: amountCheck.message }
+  }
+
+  const memo = input.memo.trim()
+  const memoCheck = validateConsultationMemo(memo)
+
+  if (!memoCheck.valid) {
+    return { success: false, message: memoCheck.message }
+  }
+
+  const record = createConsultationRecord({
+    recordType: 'consultation',
+    customerName,
+    currencyCode: input.currencyCode,
+    amount: input.amount,
+    memo,
+  })
+
+  const outcome = persistNewTransaction(record)
+
+  if (!outcome.success) {
+    return outcome
+  }
+
+  void syncTransactionAddition(record)
+
+  return outcome
 }
 
 /**
@@ -191,16 +319,40 @@ async function syncTransactionRemoval(id: string): Promise<void> {
   reportSyncOutcome()
 }
 
-/** 원격 목록과 로컬 목록을 id 기준으로 병합한다. 충돌 시 로컬 값을 우선하고, createdAt 내림차순으로 정렬한다 */
+/**
+ * customerName/memo/recordType 중 값이 있는 로컬 값을 원격의 빈 값으로 덮어쓰지 않기 위한
+ * 안전장치. 마이그레이션 전 원격 row(customer_name/memo가 백필된 빈 문자열이거나 record_type이
+ * null인 레거시 행)와 병합할 때, 로컬에 이미 있던 실제 값이 원격의 빈 값으로 지워지지 않도록
+ * 로컬 값을 우선한다.
+ */
+function preferLocalCompatFields(local: Transaction, remote: Transaction): Transaction {
+  return {
+    ...remote,
+    customerName: local.customerName.trim().length > 0 ? local.customerName : remote.customerName,
+    memo: local.memo.trim().length > 0 ? local.memo : remote.memo,
+    recordType: local.recordType,
+  } as Transaction
+}
+
+/**
+ * 원격 목록과 로컬 목록을 id 기준으로 병합한다.
+ * 원격 값을 기본으로 사용하되(§ 8.1 동기화 모델), 같은 id가 로컬에도 있으면
+ * preferLocalCompatFields()로 customerName/memo/recordType은 로컬의 실제 값을 지킨다.
+ * createdAt 내림차순으로 정렬한다.
+ */
 function mergeTransactions(local: Transaction[], remote: Transaction[]): Transaction[] {
+  const localById = new Map(local.map((transaction) => [transaction.id, transaction] as const))
   const merged = new Map<string, Transaction>()
 
   for (const transaction of remote) {
-    merged.set(transaction.id, transaction)
+    const localMatch = localById.get(transaction.id)
+    merged.set(transaction.id, localMatch ? preferLocalCompatFields(localMatch, transaction) : transaction)
   }
 
   for (const transaction of local) {
-    merged.set(transaction.id, transaction)
+    if (!merged.has(transaction.id)) {
+      merged.set(transaction.id, transaction)
+    }
   }
 
   return Array.from(merged.values()).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))

@@ -9,7 +9,11 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc -b --noEmit",
+    "arch:check": "node scripts/check-architecture.mjs",
+    "check": "npm run lint && npm run arch:check && npm run typecheck && npm run test:run && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

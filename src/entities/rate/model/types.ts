@@ -1,5 +1,7 @@
-/** 거래구분 */
-export type TransactionType = 'buy' | 'sell'
+import type { TransactionType, ValidationResult } from '../../../shared/model'
+
+/** 거래구분. 실제 정의는 entities 간 순환 의존을 막기 위해 shared/model에 있다 */
+export type { TransactionType }
 
 /** applyExchangeRate() 입력 */
 export interface ApplyExchangeRateParams {
@@ -23,8 +25,8 @@ export interface ExchangeToKRWParams {
   unit: number
 }
 
-/** validation 함수들의 반환 타입. UI가 boolean과 에러 메시지를 함께 다룰 수 있도록 설계 */
-export interface ValidationResult {
-  valid: boolean
-  message?: string
-}
+/**
+ * validation 함수들의 반환 타입. UI가 boolean과 에러 메시지를 함께 다룰 수 있도록 설계.
+ * 실제 정의는 entities 간 중복/순환 의존을 막기 위해 shared/model에 있다.
+ */
+export type { ValidationResult }

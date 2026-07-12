@@ -1,0 +1,55 @@
+import { describe, expect, it } from 'vitest'
+import { createRemittanceTransaction } from './createRemittanceTransaction'
+
+describe('createRemittanceTransaction', () => {
+  const baseInput = {
+    recordType: 'remittance' as const,
+    customerName: '테스트고객 A',
+    currencyCode: 'USD' as const,
+    amount: 1000,
+    baseRate: 1400,
+    spreadRate: 1.75,
+    preferentialRate: 80,
+    appliedRate: 1404.9,
+    principalKRW: 1404900,
+    remittanceFee: 5000,
+    cableFee: 8000,
+    totalWithdrawalKRW: 1417900,
+    memo: '',
+  }
+
+  it('주입한 clock을 사용해 id와 createdAt을 결정적으로 생성한다', () => {
+    const transaction = createRemittanceTransaction(baseInput, {
+      createId: () => 'fixed-id',
+      now: () => '2026-01-01T00:00:00.000Z',
+    })
+
+    expect(transaction).toEqual({
+      ...baseInput,
+      id: 'fixed-id',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    })
+  })
+
+  it('clock을 주입하지 않으면 실제 crypto.randomUUID/Date로 값을 생성한다', () => {
+    const transaction = createRemittanceTransaction(baseInput)
+
+    expect(typeof transaction.id).toBe('string')
+    expect(transaction.id.length).toBeGreaterThan(0)
+    expect(() => new Date(transaction.createdAt)).not.toThrow()
+    expect(Number.isNaN(new Date(transaction.createdAt).getTime())).toBe(false)
+  })
+
+  it('송금 계산 필드가 그대로 보존된다', () => {
+    const transaction = createRemittanceTransaction(baseInput, {
+      createId: () => 'fixed-id',
+      now: () => '2026-01-01T00:00:00.000Z',
+    })
+
+    expect(transaction.recordType).toBe('remittance')
+    expect(transaction.principalKRW).toBe(1404900)
+    expect(transaction.remittanceFee).toBe(5000)
+    expect(transaction.cableFee).toBe(8000)
+    expect(transaction.totalWithdrawalKRW).toBe(1417900)
+  })
+})

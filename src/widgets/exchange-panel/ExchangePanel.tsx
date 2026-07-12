@@ -7,9 +7,10 @@ import {
   type ExchangeCalculatorResult,
   type TransactionType,
 } from '../../features/calculate-exchange'
-import { parseNumberOrNull } from '../../shared/lib'
+import { parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
 import { ExchangeForm } from './ExchangeForm'
-import { ExchangeResult, type SaveMessage } from './ExchangeResult'
+import { ExchangeResult } from './ExchangeResult'
+import { TransactionSaveForm, type SaveMessage } from './TransactionSaveForm'
 
 const DEFAULT_CURRENCY_CODE: CurrencyCode = 'USD'
 const DEFAULT_SPREAD_RATE = '1.75'
@@ -36,6 +37,9 @@ export function ExchangePanel() {
   const [lastInput, setLastInput] = useState<ExchangeCalculatorInput | null>(
     null,
   )
+
+  const [customerName, setCustomerName] = useState('')
+  const [memo, setMemo] = useState('')
   const [saveMessage, setSaveMessage] = useState<SaveMessage | null>(null)
 
   const canSave =
@@ -48,10 +52,10 @@ export function ExchangePanel() {
   function handleSubmit() {
     setSaveMessage(null)
 
-    const parsedBaseRate = parseNumberOrNull(baseRate)
+    const parsedBaseRate = parseFormattedNumber(baseRate)
     const parsedSpreadRate = parseNumberOrNull(spreadRate)
     const parsedPreferentialRate = parseNumberOrNull(preferentialRate)
-    const parsedAmount = parseNumberOrNull(amount)
+    const parsedAmount = parseFormattedNumber(amount)
 
     if (
       parsedBaseRate === null ||
@@ -90,15 +94,28 @@ export function ExchangePanel() {
     setAmount('')
     setResult(null)
     setLastInput(null)
+    setCustomerName('')
+    setMemo('')
     setSaveMessage(null)
   }
 
   function handleSave() {
-    if (!lastInput || !result) {
+    if (!lastInput || !result || result.appliedRate === null || result.krwAmount === null) {
       return
     }
 
-    const outcome = addTransaction(lastInput, result)
+    const outcome = addTransaction({
+      customerName,
+      currencyCode: lastInput.currencyCode,
+      transactionType: lastInput.transactionType,
+      amount: lastInput.amount,
+      baseRate: lastInput.baseRate,
+      spreadRate: lastInput.spreadRate,
+      preferentialRate: lastInput.preferentialRate,
+      appliedRate: result.appliedRate,
+      krwAmount: result.krwAmount,
+      memo,
+    })
 
     setSaveMessage(
       outcome.success
@@ -108,6 +125,11 @@ export function ExchangePanel() {
             text: outcome.message ?? '거래를 저장하지 못했습니다.',
           },
     )
+
+    if (outcome.success) {
+      setCustomerName('')
+      setMemo('')
+    }
   }
 
   return (
@@ -142,11 +164,18 @@ export function ExchangePanel() {
         <ExchangeResult
           appliedRate={result?.appliedRate ?? null}
           krwAmount={result?.krwAmount ?? null}
-          canSave={canSave}
-          saveMessage={saveMessage}
-          onSave={handleSave}
         />
       </div>
+
+      <TransactionSaveForm
+        customerName={customerName}
+        memo={memo}
+        canSave={canSave}
+        saveMessage={saveMessage}
+        onCustomerNameChange={setCustomerName}
+        onMemoChange={setMemo}
+        onSave={handleSave}
+      />
     </section>
   )
 }

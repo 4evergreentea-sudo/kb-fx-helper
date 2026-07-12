@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "ko-KR"
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  review_status: true
+  commit_status: true
+  collapse_walkthrough: false
+  changed_files_summary: true
+  poem: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_filters:
+    - "!node_modules/**"
+    - "!dist/**"
+    - "!coverage/**"
+    - "!package-lock.json"
+
+  path_instructions:
+    - path: "src/entities/**"
+      instructions: |
+        - 순수 도메인 로직인지 확인하세요. React/DOM/localStorage/Supabase 등
+          외부 세계에 대한 의존이 없어야 합니다(entities는 shared만 import 가능).
+        - 계산/검증 함수에 경계값 테스트(0, 음수, 최대값, 빈 문자열 등)와
+          반올림/부동소수점 오차에 대한 테스트가 있는지 확인하세요.
+        - Transaction 등 discriminated union을 다룰 때 타입 가드(isXxx)로
+          안전하게 분기하는지, 레거시 데이터에 대한 마이그레이션/기본값 처리가
+          누락되지 않았는지 확인하세요.
+
+    - path: "src/features/**"
+      instructions: |
+        - 동일 레이어의 다른 feature를 import하지 않는지 확인하세요
+          (feature 간 공유가 필요하면 entities/shared로 내려야 합니다).
+        - entities/shared의 public API(index.ts)만 사용하는지, 내부 파일을
+          deep import하지 않는지 확인하세요.
+        - 유스케이스의 입력 검증(필수값, 형식, 범위)과 실패 처리(에러 메시지,
+          실패 시 상태 롤백)가 누락되지 않았는지 확인하세요.
+        - Supabase 연동 코드는 오프라인/미설정 상태에서도 localStorage로
+          정상 동작하는지, 개인정보(고객명 외)를 저장하거나 로그로 남기지
+          않는지 확인하세요.
+
+    - path: "src/widgets/**"
+      instructions: |
+        - features/entities에 이미 있는 계산 로직을 widget에서 중복
+          구현하지 않는지 확인하세요.
+        - 사용자에게 노출되는 오류 메시지와 빈 상태(결과 없음, 검색 결과 없음
+          등)가 한국어로 자연스럽게 처리되는지 확인하세요.
+        - label/버튼 등 최소한의 접근성(alt, aria-label, 폼 label 연결)이
+          지켜지는지 확인하세요.
+        - 실제 고객 개인정보 입력을 유도하지 않고 테스트용 이름/가명 사용
+          안내가 유지되는지 확인하세요.
+
+    - path: "src/shared/api/**"
+      instructions: |
+        - service_role/secret key 등 민감한 키가 코드나 로그에 노출되지
+          않는지 확인하세요(브라우저에 노출 가능한 키는 publishable/anon
+          키뿐이어야 합니다).
+        - 네트워크 요청의 timeout, 비정상 응답, 네트워크 실패에 대한
+          처리(fallback, 재시도, null 반환 등)가 있는지 확인하세요.
+
+    - path: "api/**"
+      instructions: |
+        - service_role/secret key 등 민감한 키가 코드나 로그에 노출되지
+          않는지 확인하세요.
+        - 요청 timeout, 비정상 응답, 네트워크 실패에 대한 처리가 있는지
+          확인하세요.
+        - 프런트엔드(src) 레이어 규칙을 그대로 적용받지는 않지만, src의
+          public API(index.ts)를 거치지 않고 내부 파일을 deep import하지
+          않는지 확인하세요.
+
+    - path: "**/*.csv"
+      instructions: |
+        - UTF-8 BOM이 포함되는지 확인하세요.
+        - 값에 쉼표/줄바꿈/쌍따옴표가 있을 때 RFC 4180 규칙으로 올바르게
+          escape되는지 확인하세요.
+        - 셀 값이 `=`, `+`, `-`, `@` 등으로 시작할 때 CSV Injection을
+          방지하는 처리가 있는지 확인하세요.
+
+    - path: "src/features/export-transactions-csv/**"
+      instructions: |
+        - UTF-8 BOM, RFC 4180 escape, CSV Injection 방지가 모두 구현되어
+          있는지 확인하세요.
+        - Transaction union(환전/해외송금/상담)의 각 레코드 타입에 대해
+          해당하지 않는 컬럼이 빈 셀로 정확히 채워지는지 확인하세요.
+
+    - path: "docs/supabase*.sql"
+      instructions: |
+        - RLS(Row Level Security)가 활성화되어 있는지, 모든 정책이
+          `auth.uid() = user_id` 조건을 사용하는지 확인하세요.
+        - `authenticated` role에 대한 GRANT 문이 포함되어 있는지 확인하세요.
+        - migration 스크립트가 여러 번 실행해도 안전한지(idempotent)
+          확인하세요(예: `if not exists`, `where ... is null` 형태의
+          보정 조건). 스키마 변경 중간에 오류가 나도 일부만 적용되지 않도록
+          트랜잭션(`begin`/`commit`)으로 감싸져 있는지 확인하세요.
+
+chat:
+  auto_reply: true

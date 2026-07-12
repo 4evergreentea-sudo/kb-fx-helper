@@ -1,3 +1,4 @@
+import { SUPPORTED_CURRENCY_CODES } from '../../../shared/model'
 import type { Currency, CurrencyCode } from './types'
 
 export const CURRENCIES: Record<CurrencyCode, Currency> = {
@@ -7,6 +8,5 @@ export const CURRENCIES: Record<CurrencyCode, Currency> = {
   CNY: { code: 'CNY', displayName: '중국 위안', unit: 1 },
 }
 
-export const SUPPORTED_CURRENCY_CODES: CurrencyCode[] = Object.keys(
-  CURRENCIES,
-) as CurrencyCode[]
+/** 지원 통화 코드 목록의 단일 소스는 shared/model이며, 여기서는 재노출만 한다 */
+export { SUPPORTED_CURRENCY_CODES }

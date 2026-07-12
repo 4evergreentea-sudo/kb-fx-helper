@@ -1,1 +1,1 @@
-export {}
+export { filterTransactionRecords } from './lib/filterTransactionRecords'
