@@ -1,0 +1,43 @@
+---
+description: FSD(Feature-Sliced Design) 아키텍처 및 레이어 의존 규칙
+alwaysApply: true
+---
+
+# FSD 아키텍처 규칙
+
+이 프로젝트는 Feature-Sliced Design(FSD) 구조를 따릅니다.
+
+## 레이어 구조 및 의존 방향
+
+```
+app → pages → widgets → features → entities → shared
+```
+
+- 상위 레이어는 하위 레이어를 import할 수 있습니다.
+- **역방향 import 금지**: 하위 레이어는 상위 레이어를 import할 수 없습니다.
+  - 예: `entities`는 `features`, `widgets`, `pages`, `app`을 import할 수 없습니다.
+  - 예: `shared`는 다른 어떤 레이어도 import할 수 없습니다.
+
+## 동일 레이어 import 금지
+
+- 같은 레이어에 있는 다른 슬라이스를 서로 import하지 않습니다.
+  - 예: `widgets/exchange-panel`은 `widgets/transaction-history-panel`을 import할 수 없습니다.
+  - 같은 레이어의 슬라이스 간 공유 로직이 필요하면 더 하위 레이어(`entities`, `shared`)로 내려서 공유합니다.
+
+## Public API (`index.ts`) 사용
+
+- 각 슬라이스(폴더)는 반드시 `index.ts`를 통해서만 외부에 노출합니다.
+- 슬라이스 내부 파일을 직접 import하지 않습니다.
+
+```typescript
+// ❌ BAD
+import { ExchangePanel } from '@/widgets/exchange-panel/ExchangePanel'
+
+// ✅ GOOD
+import { ExchangePanel } from '@/widgets/exchange-panel'
+```
+
+## 새 슬라이스 추가 시
+
+- 새 슬라이스를 만들면 항상 `index.ts`(public API)를 함께 생성합니다.
+- 슬라이스 내부 구현은 자유롭게 구성하되, 외부에 노출할 것만 `index.ts`에서 export합니다.

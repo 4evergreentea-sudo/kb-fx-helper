@@ -1,0 +1,39 @@
+---
+description: 보안 및 개인정보 보호 규칙
+alwaysApply: true
+---
+
+# 보안 규칙
+
+## API Key 하드코딩 금지
+
+- API 키, 시크릿, 토큰 등을 소스 코드에 직접 작성하지 않습니다.
+- 반드시 환경변수(`.env`, Vercel 환경변수 등)로 관리하고, `.env` 파일은 git에 커밋하지 않습니다.
+
+```typescript
+// ❌ BAD
+const API_KEY = 'sk-abc123...'
+
+// ✅ GOOD
+const API_KEY = process.env.EXIM_API_KEY
+```
+
+## 개인정보 저장 금지
+
+- 고객의 이름, 실명, 계좌번호, 연락처 등 개인정보를 데이터베이스, localStorage, 로그에 저장하지 않습니다.
+- 거래 기록에는 개인 식별 정보 없이 거래 내용(환종, 금액, 환율, 시각 등)만 저장합니다.
+
+## RLS (Row Level Security)
+
+- Supabase 테이블에는 RLS(Row Level Security)를 반드시 활성화합니다.
+- 인증되지 않은 요청이나 다른 사용자의 데이터에 접근하지 못하도록 정책을 명시적으로 정의합니다.
+
+## CSV Injection 방지
+
+- 거래 기록 등을 CSV로 내보낼 때, 셀 값이 `=`, `+`, `-`, `@`로 시작하면 앞에 `'`(싱글쿼트)를 붙여 수식으로 해석되지 않도록 이스케이프합니다.
+
+```typescript
+function escapeCsvCell(value: string): string {
+  return /^[=+\-@]/.test(value) ? `'${value}` : value
+}
+```
