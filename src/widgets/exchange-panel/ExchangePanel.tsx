@@ -7,7 +7,8 @@ import {
   type ExchangeCalculatorResult,
   type TransactionType,
 } from '../../features/calculate-exchange'
-import { parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
+import { useLoadExchangeRates } from '../../features/load-exchange-rates'
+import { formatRate, parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
 import { ExchangeForm } from './ExchangeForm'
 import { ExchangeResult } from './ExchangeResult'
 import { TransactionSaveForm, type SaveMessage } from './TransactionSaveForm'
@@ -19,6 +20,13 @@ const DEFAULT_TRANSACTION_TYPE: TransactionType = 'buy'
 
 export function ExchangePanel() {
   const { addTransaction } = useTransactionHistory()
+  const {
+    isLoading: isLoadingOfficialRate,
+    errorMessage: officialRateErrorMessage,
+    warningMessage: officialRateWarningMessage,
+    metadata: officialRateMetadata,
+    loadOfficialRate,
+  } = useLoadExchangeRates()
 
   const [currencyCode, setCurrencyCode] = useState<CurrencyCode>(
     DEFAULT_CURRENCY_CODE,
@@ -48,6 +56,14 @@ export function ExchangePanel() {
     result.validation.valid &&
     result.appliedRate !== null &&
     result.krwAmount !== null
+
+  async function handleLoadOfficialRate() {
+    const loadedRate = await loadOfficialRate(currencyCode)
+
+    if (loadedRate !== null) {
+      setBaseRate(formatRate(loadedRate))
+    }
+  }
 
   function handleSubmit() {
     setSaveMessage(null)
@@ -151,12 +167,17 @@ export function ExchangePanel() {
               ? result.validation.message
               : undefined
           }
+          isLoadingOfficialRate={isLoadingOfficialRate}
+          officialRateMetadata={officialRateMetadata}
+          officialRateErrorMessage={officialRateErrorMessage}
+          officialRateWarningMessage={officialRateWarningMessage}
           onCurrencyChange={setCurrencyCode}
           onBaseRateChange={setBaseRate}
           onSpreadRateChange={setSpreadRate}
           onPreferentialRateChange={setPreferentialRate}
           onTransactionTypeChange={setTransactionType}
           onAmountChange={setAmount}
+          onLoadOfficialRate={handleLoadOfficialRate}
           onSubmit={handleSubmit}
           onReset={handleReset}
         />

@@ -6,7 +6,8 @@ import {
   type RemittanceCalculatorInput,
   type RemittanceCalculatorResult,
 } from '../../features/calculate-remittance'
-import { parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
+import { useLoadExchangeRates } from '../../features/load-exchange-rates'
+import { formatRate, parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
 import { RemittanceForm } from './RemittanceForm'
 import { RemittanceResult } from './RemittanceResult'
 import { RemittanceSaveForm, type RemittanceSaveMessage } from './RemittanceSaveForm'
@@ -18,6 +19,13 @@ const DEFAULT_FEE = '0'
 
 export function RemittancePanel() {
   const { addRemittanceTransaction } = useTransactionHistory()
+  const {
+    isLoading: isLoadingOfficialRate,
+    errorMessage: officialRateErrorMessage,
+    warningMessage: officialRateWarningMessage,
+    metadata: officialRateMetadata,
+    loadOfficialRate,
+  } = useLoadExchangeRates()
 
   const [currencyCode, setCurrencyCode] = useState<CurrencyCode>(
     DEFAULT_CURRENCY_CODE,
@@ -53,6 +61,14 @@ export function RemittancePanel() {
     result.remittanceFee !== null &&
     result.cableFee !== null &&
     result.totalWithdrawalKRW !== null
+
+  async function handleLoadOfficialRate() {
+    const loadedRate = await loadOfficialRate(currencyCode)
+
+    if (loadedRate !== null) {
+      setBaseRate(formatRate(loadedRate))
+    }
+  }
 
   function handleSubmit() {
     setSaveMessage(null)
@@ -176,6 +192,10 @@ export function RemittancePanel() {
               ? result.validation.message
               : undefined
           }
+          isLoadingOfficialRate={isLoadingOfficialRate}
+          officialRateMetadata={officialRateMetadata}
+          officialRateErrorMessage={officialRateErrorMessage}
+          officialRateWarningMessage={officialRateWarningMessage}
           onCurrencyChange={setCurrencyCode}
           onForeignAmountChange={setForeignAmount}
           onBaseRateChange={setBaseRate}
@@ -183,6 +203,7 @@ export function RemittancePanel() {
           onPreferentialRateChange={setPreferentialRate}
           onRemittanceFeeChange={setRemittanceFee}
           onCableFeeChange={setCableFee}
+          onLoadOfficialRate={handleLoadOfficialRate}
           onSubmit={handleSubmit}
           onReset={handleReset}
         />
