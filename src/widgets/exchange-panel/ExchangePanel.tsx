@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CurrencyCode } from '../../entities/currency'
 import { useTransactionHistory } from '../../features/add-transaction'
 import {
@@ -36,7 +36,11 @@ export function ExchangePanel() {
     DEFAULT_CURRENCY_CODE,
   )
   const latestCurrencyCodeRef = useRef(currencyCode)
-  latestCurrencyCodeRef.current = currencyCode
+
+  useEffect(() => {
+    latestCurrencyCodeRef.current = currencyCode
+  }, [currencyCode])
+
   const [baseRate, setBaseRate] = useState('')
   const [spreadRate, setSpreadRate] = useState(DEFAULT_SPREAD_RATE)
   const [preferentialRate, setPreferentialRate] = useState(
