@@ -118,6 +118,7 @@ if (
   }
 
   function handleReset() {
+    resetOfficialRates()
     setCurrencyCode(DEFAULT_CURRENCY_CODE)
     setBaseRate('')
     setSpreadRate(DEFAULT_SPREAD_RATE)

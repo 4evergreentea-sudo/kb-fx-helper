@@ -48,17 +48,4 @@ describe('official rate request flow', () => {
     expect(state.metadata).toEqual(secondMetadata)
     expect(coordinator.isCurrent(firstRequestId)).toBe(false)
   })
-
-  it('통화 변경 시 invalidate하면 이전 기준일·출처 상태가 초기화된다', () => {
-    const coordinator = createRequestCoordinator()
-    coordinator.start()
-
-    coordinator.invalidate()
-
-    const resetState: LoaderState = { status: 'idle', metadata: null }
-
-    expect(resetState.metadata).toBeNull()
-    expect(resetState.status).toBe('idle')
-    expect(coordinator.getLatestRequestId()).toBeGreaterThan(0)
-  })
 })

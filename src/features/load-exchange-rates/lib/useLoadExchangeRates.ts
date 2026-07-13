@@ -6,6 +6,10 @@ import type {
   LoadOfficialRateCallResult,
 } from '../model/types'
 import { loadOfficialExchangeRate } from './loadExchangeRates'
+import {
+  OFFICIAL_RATES_IDLE_UI_STATE,
+  resetOfficialRatesUiState,
+} from './officialRatesResetState'
 import { createRequestCoordinator } from './requestCoordinator'
 
 export interface UseLoadExchangeRatesResult {
@@ -20,28 +24,27 @@ export interface UseLoadExchangeRatesResult {
   resetOfficialRates: () => void
 }
 
-const IDLE_STATE = {
-  status: 'idle' as const,
-  errorMessage: null,
-  warningMessage: null,
-  metadata: null,
-}
-
 export function useLoadExchangeRates(): UseLoadExchangeRatesResult {
   const coordinatorRef = useRef(createRequestCoordinator())
-  const [status, setStatus] = useState<LoadExchangeRatesStatus>('idle')
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [warningMessage, setWarningMessage] = useState<string | null>(null)
+  const [status, setStatus] = useState<LoadExchangeRatesStatus>(
+    OFFICIAL_RATES_IDLE_UI_STATE.status,
+  )
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    OFFICIAL_RATES_IDLE_UI_STATE.errorMessage,
+  )
+  const [warningMessage, setWarningMessage] = useState<string | null>(
+    OFFICIAL_RATES_IDLE_UI_STATE.warningMessage,
+  )
   const [metadata, setMetadata] = useState<LoadExchangeRatesMetadata | null>(
-    null,
+    OFFICIAL_RATES_IDLE_UI_STATE.metadata,
   )
 
   const resetOfficialRates = useCallback(() => {
-    coordinatorRef.current.invalidate()
-    setStatus(IDLE_STATE.status)
-    setErrorMessage(IDLE_STATE.errorMessage)
-    setWarningMessage(IDLE_STATE.warningMessage)
-    setMetadata(IDLE_STATE.metadata)
+    const nextState = resetOfficialRatesUiState(coordinatorRef.current)
+    setStatus(nextState.status)
+    setErrorMessage(nextState.errorMessage)
+    setWarningMessage(nextState.warningMessage)
+    setMetadata(nextState.metadata)
   }, [])
 
   const loadOfficialRate = useCallback(async (currencyCode: CurrencyCode) => {
@@ -53,6 +56,7 @@ export function useLoadExchangeRates(): UseLoadExchangeRatesResult {
     setWarningMessage(null)
 
     const result = await loadOfficialExchangeRate(currencyCode)
+
     if (!coordinator.isCurrent(requestId)) {
       return {
         applied: false,

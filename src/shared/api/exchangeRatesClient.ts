@@ -57,7 +57,9 @@ export async function fetchOfficialExchangeRates(
       ? (maybeOptions ?? {})
       : fetchImplOrOptions
   const fetchImpl =
-    typeof fetchImplOrOptions === 'function' ? fetchImplOrOptions : fetch
+    typeof fetchImplOrOptions === 'function'
+      ? fetchImplOrOptions
+      : (fetchImplOrOptions.fetchImpl ?? fetch)
   const timeoutMs =
     options.timeoutMs ?? DEFAULT_EXCHANGE_RATES_CLIENT_TIMEOUT_MS
 

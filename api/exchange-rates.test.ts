@@ -110,6 +110,26 @@ describe('exchange-rates handler', () => {
     })
   })
 
+  it('fetchEximRatesWithLookback timeout 오류 시 504를 반환한다', async () => {
+    vi.spyOn(fetchEximModule, 'fetchEximRatesWithLookback').mockRejectedValue(
+      new FetchEximRatesError('timeout', '환율 조회 시간이 초과되었습니다.'),
+    )
+
+    const response = await GET(
+      new Request('https://example.com/api/exchange-rates'),
+    )
+    const text = await response.text()
+
+    expect(response.status).toBe(504)
+    expect(JSON.parse(text)).toEqual({
+      message: '환율 조회 시간이 초과되었습니다.',
+    })
+    expect(text).not.toContain('test-api-key')
+    expect(text).not.toContain('authkey')
+    expect(text).not.toContain('cur_unit')
+    expect(text).not.toContain('deal_bas_r')
+  })
+
   it('fetchEximRatesWithLookback api_error 시 502를 반환한다', async () => {
     vi.spyOn(fetchEximModule, 'fetchEximRatesWithLookback').mockRejectedValue(
       new FetchEximRatesError('api_error', '환율 API에서 오류가 반환되었습니다.'),

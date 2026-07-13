@@ -122,4 +122,66 @@ describe('fetchOfficialExchangeRates', () => {
     expect(serialized).not.toContain('authkey')
     expect(serialized).not.toContain('EXIM_API_KEY')
   })
+
+  it('옵션 객체의 fetchImpl이 실제 호출된다', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        baseDate: '2026-07-12',
+        source: '한국수출입은행',
+        rates: { USD: 1384.5 },
+      }),
+    })
+    const globalFetch = vi.fn()
+
+    await fetchOfficialExchangeRates({
+      fetchImpl,
+      timeoutMs: 1000,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    expect(globalFetch).not.toHaveBeenCalled()
+  })
+
+  it('옵션 객체에서 fetchImpl 생략 시 global fetch를 사용한다', async () => {
+    const originalFetch = globalThis.fetch
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        baseDate: '2026-07-12',
+        source: '한국수출입은행',
+        rates: { USD: 1384.5 },
+      }),
+    })
+    globalThis.fetch = fetchMock as typeof fetch
+
+    try {
+      await fetchOfficialExchangeRates({ timeoutMs: 1000 })
+      expect(fetchMock).toHaveBeenCalledOnce()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('2인자 호출 방식에서 fetchImpl과 timeoutMs를 사용한다', async () => {
+    const fetchImpl = vi.fn().mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        }),
+    )
+
+    const promise = fetchOfficialExchangeRates(fetchImpl, { timeoutMs: 30 })
+    const assertion = expect(promise).rejects.toMatchObject({ code: 'timeout' })
+
+    await vi.advanceTimersByTimeAsync(30)
+    await assertion
+    expect(fetchImpl).toHaveBeenCalledOnce()
+  })
 })

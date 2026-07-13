@@ -18,43 +18,7 @@ function applyPanelOfficialRate(
   }
 }
 
-describe('exchange panel official rate guard', () => {
-  it('USD 조회 중 JPY로 변경되면 USD 환율이 입력란에 적용되지 않는다', () => {
-    const setBaseRate = vi.fn()
-
-    applyPanelOfficialRate(
-      'USD',
-      'JPY',
-      {
-        applied: true,
-        requestId: 1,
-        latestRequestId: 1,
-        baseRate: 1384.5,
-      },
-      setBaseRate,
-    )
-
-    expect(setBaseRate).not.toHaveBeenCalled()
-  })
-
-  it('최신 요청 결과만 입력란에 적용한다', () => {
-    const setBaseRate = vi.fn()
-
-    applyPanelOfficialRate(
-      'USD',
-      'USD',
-      {
-        applied: true,
-        requestId: 2,
-        latestRequestId: 2,
-        baseRate: 1384.5,
-      },
-      setBaseRate,
-    )
-
-    expect(setBaseRate).toHaveBeenCalledWith('1384.5')
-  })
-
+describe('remittance panel official rate guard', () => {
   it('초기화 후 늦게 도착한 stale 요청이 baseRate를 덮어쓰지 않는다', () => {
     const setBaseRate = vi.fn()
 

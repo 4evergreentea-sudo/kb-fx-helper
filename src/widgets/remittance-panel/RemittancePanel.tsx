@@ -131,6 +131,7 @@ if (
   }
 
   function handleReset() {
+    resetOfficialRates()
     setCurrencyCode(DEFAULT_CURRENCY_CODE)
     setForeignAmount('')
     setBaseRate('')
