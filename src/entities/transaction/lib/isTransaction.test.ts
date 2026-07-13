@@ -51,6 +51,13 @@ const validRemittance: RemittanceTransaction = {
   memo: '',
 }
 
+const RATE_FIELDS = [
+  'baseRate',
+  'spreadRate',
+  'preferentialRate',
+  'appliedRate',
+] as const
+
 describe('isExchangeTransaction', () => {
   it('정상적인 ExchangeTransaction을 true로 판별한다', () => {
     expect(isExchangeTransaction(validExchange)).toBe(true)
@@ -114,20 +121,23 @@ describe('숫자 필드 경계값(NaN/Infinity/음수/0)', () => {
   // 이 type guard는 "형태가 숫자다(finite number)"만 검사한다. 값의 범위(0 초과 등)를
   // 강제하는 업무 검증(양수 여부 등)은 validateTransactionRecord.ts가 별도로 담당하므로,
   // 음수나 0은 여기서는 "계약상 허용"되고 NaN/Infinity만 "금지"된다.
-  it.each(['baseRate', 'krwAmount'] as const)(
-    'exchange의 %s가 NaN이면 false다',
-    (field) => {
-      expect(isExchangeTransaction({ ...validExchange, [field]: Number.NaN })).toBe(false)
-    },
-  )
+  it.each(RATE_FIELDS)('exchange의 %s가 NaN이면 false다', (field) => {
+    expect(isExchangeTransaction({ ...validExchange, [field]: Number.NaN })).toBe(false)
+  })
 
-  it.each(['baseRate', 'krwAmount'] as const)(
-    'exchange의 %s가 Infinity/-Infinity이면 false다',
-    (field) => {
-      expect(isExchangeTransaction({ ...validExchange, [field]: Infinity })).toBe(false)
-      expect(isExchangeTransaction({ ...validExchange, [field]: -Infinity })).toBe(false)
-    },
-  )
+  it('exchange의 krwAmount가 NaN이면 false다', () => {
+    expect(isExchangeTransaction({ ...validExchange, krwAmount: Number.NaN })).toBe(false)
+  })
+
+  it.each(RATE_FIELDS)('exchange의 %s가 Infinity/-Infinity이면 false다', (field) => {
+    expect(isExchangeTransaction({ ...validExchange, [field]: Infinity })).toBe(false)
+    expect(isExchangeTransaction({ ...validExchange, [field]: -Infinity })).toBe(false)
+  })
+
+  it('exchange의 krwAmount가 Infinity/-Infinity이면 false다', () => {
+    expect(isExchangeTransaction({ ...validExchange, krwAmount: Infinity })).toBe(false)
+    expect(isExchangeTransaction({ ...validExchange, krwAmount: -Infinity })).toBe(false)
+  })
 
   it.each(['baseRate', 'krwAmount'] as const)(
     'exchange의 %s가 음수여도 구조적으로는 유효하다(양수 검증은 여기서 하지 않음)',
@@ -143,20 +153,29 @@ describe('숫자 필드 경계값(NaN/Infinity/음수/0)', () => {
     },
   )
 
-  it.each(['baseRate', 'totalWithdrawalKRW'] as const)(
-    'remittance의 %s가 NaN이면 false다',
-    (field) => {
-      expect(isRemittanceTransaction({ ...validRemittance, [field]: Number.NaN })).toBe(false)
-    },
-  )
+  it.each(RATE_FIELDS)('remittance의 %s가 NaN이면 false다', (field) => {
+    expect(isRemittanceTransaction({ ...validRemittance, [field]: Number.NaN })).toBe(false)
+  })
 
-  it.each(['baseRate', 'totalWithdrawalKRW'] as const)(
-    'remittance의 %s가 Infinity/-Infinity이면 false다',
-    (field) => {
-      expect(isRemittanceTransaction({ ...validRemittance, [field]: Infinity })).toBe(false)
-      expect(isRemittanceTransaction({ ...validRemittance, [field]: -Infinity })).toBe(false)
-    },
-  )
+  it('remittance의 totalWithdrawalKRW가 NaN이면 false다', () => {
+    expect(
+      isRemittanceTransaction({ ...validRemittance, totalWithdrawalKRW: Number.NaN }),
+    ).toBe(false)
+  })
+
+  it.each(RATE_FIELDS)('remittance의 %s가 Infinity/-Infinity이면 false다', (field) => {
+    expect(isRemittanceTransaction({ ...validRemittance, [field]: Infinity })).toBe(false)
+    expect(isRemittanceTransaction({ ...validRemittance, [field]: -Infinity })).toBe(false)
+  })
+
+  it('remittance의 totalWithdrawalKRW가 Infinity/-Infinity이면 false다', () => {
+    expect(isRemittanceTransaction({ ...validRemittance, totalWithdrawalKRW: Infinity })).toBe(
+      false,
+    )
+    expect(
+      isRemittanceTransaction({ ...validRemittance, totalWithdrawalKRW: -Infinity }),
+    ).toBe(false)
+  })
 
   it.each(['baseRate', 'totalWithdrawalKRW'] as const)(
     'remittance의 %s가 음수여도 구조적으로는 유효하다(양수 검증은 여기서 하지 않음)',
