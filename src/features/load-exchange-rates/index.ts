@@ -17,3 +17,9 @@ export type { UseLoadExchangeRatesResult } from './lib/useLoadExchangeRates'
 export { OfficialRateField } from './ui/OfficialRateField'
 export { resetOfficialRatesUiState } from './lib/officialRatesResetState'
 export type { OfficialRatesUiState } from './lib/officialRatesResetState'
+
+export { useOfficialRateForPanel } from './lib/useOfficialRateForPanel'
+export type {
+  UseOfficialRateForPanelInput,
+  UseOfficialRateForPanelResult,
+} from './lib/useOfficialRateForPanel'

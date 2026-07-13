@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { CurrencyCode } from '../../entities/currency'
 import { useTransactionHistory } from '../../features/add-transaction'
 import {
@@ -6,10 +6,7 @@ import {
   type RemittanceCalculatorInput,
   type RemittanceCalculatorResult,
 } from '../../features/calculate-remittance'
-import {
-  applyOfficialRateToPanel,
-  useLoadExchangeRates,
-} from '../../features/load-exchange-rates'
+import { useOfficialRateForPanel } from '../../features/load-exchange-rates'
 import { formatRate, parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
 import { RemittanceForm } from './RemittanceForm'
 import { RemittanceResult } from './RemittanceResult'
@@ -22,24 +19,10 @@ const DEFAULT_FEE = '0'
 
 export function RemittancePanel() {
   const { addRemittanceTransaction } = useTransactionHistory()
-  const {
-    isLoading: isLoadingOfficialRate,
-    errorMessage: officialRateErrorMessage,
-    warningMessage: officialRateWarningMessage,
-    metadata: officialRateMetadata,
-    loadOfficialRate,
-    resetOfficialRates,
-  } = useLoadExchangeRates()
 
   const [currencyCode, setCurrencyCode] = useState<CurrencyCode>(
     DEFAULT_CURRENCY_CODE,
   )
-  const latestCurrencyCodeRef = useRef(currencyCode)
-
-  useEffect(() => {
-    latestCurrencyCodeRef.current = currencyCode
-  }, [currencyCode])
-
   const [foreignAmount, setForeignAmount] = useState('')
   const [baseRate, setBaseRate] = useState('')
   const [spreadRate, setSpreadRate] = useState(DEFAULT_SPREAD_RATE)
@@ -62,6 +45,23 @@ export function RemittancePanel() {
     null,
   )
 
+  const {
+    isLoading: isLoadingOfficialRate,
+    errorMessage: officialRateErrorMessage,
+    warningMessage: officialRateWarningMessage,
+    metadata: officialRateMetadata,
+    handleLoadOfficialRate,
+    handleCurrencyChange,
+    resetOfficialRates,
+  } = useOfficialRateForPanel({
+    currencyCode,
+    setBaseRate,
+    clearLastInput: () => setLastInput(null),
+    clearResult: () => setResult(null),
+    onCurrencyChange: setCurrencyCode,
+    formatRate,
+  })
+
   const canSave =
     lastInput !== null &&
     result !== null &&
@@ -71,27 +71,6 @@ export function RemittancePanel() {
     result.remittanceFee !== null &&
     result.cableFee !== null &&
     result.totalWithdrawalKRW !== null
-
-  async function handleLoadOfficialRate() {
-    const requestedCurrency = currencyCode
-    const callResult = await loadOfficialRate(requestedCurrency)
-
-    applyOfficialRateToPanel({
-      requestedCurrency,
-      currentCurrency: latestCurrencyCodeRef.current,
-      loadResult: callResult,
-      formatRate,
-      setBaseRate,
-      clearLastInput: () => setLastInput(null),
-      clearResult: () => setResult(null),
-    })
-  }
-
-  function handleCurrencyChange(nextCurrency: CurrencyCode) {
-    resetOfficialRates()
-    latestCurrencyCodeRef.current = nextCurrency
-    setCurrencyCode(nextCurrency)
-  }
 
   function handleSubmit() {
     setSaveMessage(null)

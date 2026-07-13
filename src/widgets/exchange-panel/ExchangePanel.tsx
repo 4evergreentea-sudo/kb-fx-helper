@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { CurrencyCode } from '../../entities/currency'
 import { useTransactionHistory } from '../../features/add-transaction'
 import {
@@ -7,10 +7,7 @@ import {
   type ExchangeCalculatorResult,
   type TransactionType,
 } from '../../features/calculate-exchange'
-import {
-  applyOfficialRateToPanel,
-  useLoadExchangeRates,
-} from '../../features/load-exchange-rates'
+import { useOfficialRateForPanel } from '../../features/load-exchange-rates'
 import { formatRate, parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
 import { ExchangeForm } from './ExchangeForm'
 import { ExchangeResult } from './ExchangeResult'
@@ -23,24 +20,10 @@ const DEFAULT_TRANSACTION_TYPE: TransactionType = 'buy'
 
 export function ExchangePanel() {
   const { addTransaction } = useTransactionHistory()
-  const {
-    isLoading: isLoadingOfficialRate,
-    errorMessage: officialRateErrorMessage,
-    warningMessage: officialRateWarningMessage,
-    metadata: officialRateMetadata,
-    loadOfficialRate,
-    resetOfficialRates,
-  } = useLoadExchangeRates()
 
   const [currencyCode, setCurrencyCode] = useState<CurrencyCode>(
     DEFAULT_CURRENCY_CODE,
   )
-  const latestCurrencyCodeRef = useRef(currencyCode)
-
-  useEffect(() => {
-    latestCurrencyCodeRef.current = currencyCode
-  }, [currencyCode])
-
   const [baseRate, setBaseRate] = useState('')
   const [spreadRate, setSpreadRate] = useState(DEFAULT_SPREAD_RATE)
   const [preferentialRate, setPreferentialRate] = useState(
@@ -60,33 +43,29 @@ export function ExchangePanel() {
   const [memo, setMemo] = useState('')
   const [saveMessage, setSaveMessage] = useState<SaveMessage | null>(null)
 
+  const {
+    isLoading: isLoadingOfficialRate,
+    errorMessage: officialRateErrorMessage,
+    warningMessage: officialRateWarningMessage,
+    metadata: officialRateMetadata,
+    handleLoadOfficialRate,
+    handleCurrencyChange,
+    resetOfficialRates,
+  } = useOfficialRateForPanel({
+    currencyCode,
+    setBaseRate,
+    clearLastInput: () => setLastInput(null),
+    clearResult: () => setResult(null),
+    onCurrencyChange: setCurrencyCode,
+    formatRate,
+  })
+
   const canSave =
     lastInput !== null &&
     result !== null &&
     result.validation.valid &&
     result.appliedRate !== null &&
     result.krwAmount !== null
-
-  async function handleLoadOfficialRate() {
-    const requestedCurrency = currencyCode
-    const callResult = await loadOfficialRate(requestedCurrency)
-
-    applyOfficialRateToPanel({
-      requestedCurrency,
-      currentCurrency: latestCurrencyCodeRef.current,
-      loadResult: callResult,
-      formatRate,
-      setBaseRate,
-      clearLastInput: () => setLastInput(null),
-      clearResult: () => setResult(null),
-    })
-  }
-
-  function handleCurrencyChange(nextCurrency: CurrencyCode) {
-    resetOfficialRates()
-    latestCurrencyCodeRef.current = nextCurrency
-    setCurrencyCode(nextCurrency)
-  }
 
   function handleSubmit() {
     setSaveMessage(null)
