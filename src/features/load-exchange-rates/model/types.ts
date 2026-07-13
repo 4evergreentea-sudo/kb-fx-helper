@@ -28,3 +28,11 @@ export type LoadExchangeRatesResult =
 export interface LoadOfficialRateInput {
   currencyCode: CurrencyCode
 }
+
+export interface LoadOfficialRateCallResult {
+  applied: boolean
+  requestId: number
+  latestRequestId: number
+  baseRate?: number
+  reason?: 'stale' | 'error'
+}

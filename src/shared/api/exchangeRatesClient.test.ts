@@ -1,7 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fetchOfficialExchangeRates } from './exchangeRatesClient'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  DEFAULT_EXCHANGE_RATES_CLIENT_TIMEOUT_MS,
+  fetchOfficialExchangeRates,
+} from './exchangeRatesClient'
 
 describe('fetchOfficialExchangeRates', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('200 응답을 파싱한다', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
@@ -44,6 +55,54 @@ describe('fetchOfficialExchangeRates', () => {
     await expect(fetchOfficialExchangeRates(fetchImpl)).rejects.toMatchObject({
       code: 'invalid_response',
     })
+  })
+
+  it('TypeError reject는 network 오류를 던진다', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
+
+    await expect(fetchOfficialExchangeRates(fetchImpl)).rejects.toMatchObject({
+      code: 'network',
+    })
+  })
+
+  it('Abort 발생 시 timeout 오류를 던진다', async () => {
+    const fetchImpl = vi.fn().mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        }),
+    )
+
+    const promise = fetchOfficialExchangeRates(fetchImpl, { timeoutMs: 50 })
+    const assertion = expect(promise).rejects.toMatchObject({ code: 'timeout' })
+
+    await vi.advanceTimersByTimeAsync(50)
+    await assertion
+  })
+
+  it('fetch에 AbortSignal을 전달한다', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        baseDate: '2026-07-12',
+        source: '한국수출입은행',
+        rates: { USD: 1384.5 },
+      }),
+    })
+
+    await fetchOfficialExchangeRates(fetchImpl)
+
+    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('기본 timeout은 8초이다', () => {
+    expect(DEFAULT_EXCHANGE_RATES_CLIENT_TIMEOUT_MS).toBe(8000)
   })
 
   it('응답에 API 키 문자열이 포함되지 않는다', async () => {

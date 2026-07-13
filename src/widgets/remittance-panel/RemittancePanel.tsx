@@ -6,7 +6,10 @@ import {
   type RemittanceCalculatorInput,
   type RemittanceCalculatorResult,
 } from '../../features/calculate-remittance'
-import { useLoadExchangeRates } from '../../features/load-exchange-rates'
+import {
+  shouldApplyOfficialRateToInput,
+  useLoadExchangeRates,
+} from '../../features/load-exchange-rates'
 import { formatRate, parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
 import { RemittanceForm } from './RemittanceForm'
 import { RemittanceResult } from './RemittanceResult'
@@ -25,6 +28,7 @@ export function RemittancePanel() {
     warningMessage: officialRateWarningMessage,
     metadata: officialRateMetadata,
     loadOfficialRate,
+    resetOfficialRates,
   } = useLoadExchangeRates()
 
   const [currencyCode, setCurrencyCode] = useState<CurrencyCode>(
@@ -63,11 +67,23 @@ export function RemittancePanel() {
     result.totalWithdrawalKRW !== null
 
   async function handleLoadOfficialRate() {
-    const loadedRate = await loadOfficialRate(currencyCode)
+    const requestedCurrency = currencyCode
+    const callResult = await loadOfficialRate(requestedCurrency)
 
-    if (loadedRate !== null) {
-      setBaseRate(formatRate(loadedRate))
+if (
+      shouldApplyOfficialRateToInput(
+        requestedCurrency,
+        currencyCode,
+        callResult,
+      )
+    ) {
+      setBaseRate(formatRate(callResult.baseRate))
     }
+  }
+
+  function handleCurrencyChange(nextCurrency: CurrencyCode) {
+    resetOfficialRates()
+    setCurrencyCode(nextCurrency)
   }
 
   function handleSubmit() {
@@ -196,7 +212,7 @@ export function RemittancePanel() {
           officialRateMetadata={officialRateMetadata}
           officialRateErrorMessage={officialRateErrorMessage}
           officialRateWarningMessage={officialRateWarningMessage}
-          onCurrencyChange={setCurrencyCode}
+          onCurrencyChange={handleCurrencyChange}
           onForeignAmountChange={setForeignAmount}
           onBaseRateChange={setBaseRate}
           onSpreadRateChange={setSpreadRate}

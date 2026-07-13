@@ -24,12 +24,19 @@ export class ExchangeRatesClientError extends Error {
   }
 }
 
+export const DEFAULT_EXCHANGE_RATES_CLIENT_TIMEOUT_MS = 8000
+
 const ERROR_MESSAGES: Record<number, string> = {
   400: '잘못된 날짜 형식입니다.',
   404: '최근 7일간 환율 데이터가 없습니다.',
   502: '환율 서버에 연결하지 못했습니다.',
   503: '환율 API가 설정되지 않았습니다.',
   504: '환율 조회 시간이 초과되었습니다. 수동으로 입력해주세요.',
+}
+
+export interface FetchOfficialExchangeRatesOptions {
+  fetchImpl?: typeof fetch
+  timeoutMs?: number
 }
 
 function mapStatusToCode(status: number): ExchangeRatesClientErrorCode {
@@ -42,21 +49,45 @@ function mapStatusToCode(status: number): ExchangeRatesClientErrorCode {
 
 /** 앱 내부 /api/exchange-rates 엔드포인트에서 정규화 환율을 조회한다 */
 export async function fetchOfficialExchangeRates(
-  fetchImpl: typeof fetch = fetch,
+  fetchImplOrOptions: typeof fetch | FetchOfficialExchangeRatesOptions = fetch,
+  maybeOptions?: FetchOfficialExchangeRatesOptions,
 ): Promise<OfficialExchangeRates> {
+  const options =
+    typeof fetchImplOrOptions === 'function'
+      ? (maybeOptions ?? {})
+      : fetchImplOrOptions
+  const fetchImpl =
+    typeof fetchImplOrOptions === 'function' ? fetchImplOrOptions : fetch
+  const timeoutMs =
+    options.timeoutMs ?? DEFAULT_EXCHANGE_RATES_CLIENT_TIMEOUT_MS
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
   let response: Response
 
   try {
     response = await fetchImpl('/api/exchange-rates', {
       method: 'GET',
       headers: { Accept: 'application/json' },
+      signal: controller.signal,
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ExchangeRatesClientError(
+        'timeout',
+        '환율 조회 시간이 초과되었습니다. 수동으로 입력해주세요.',
+        0,
+      )
+    }
+
     throw new ExchangeRatesClientError(
       'network',
       '네트워크 오류로 환율을 불러오지 못했습니다.',
       0,
     )
+  } finally {
+    clearTimeout(timeoutId)
   }
 
   let body: { message?: string } & Partial<OfficialExchangeRates>

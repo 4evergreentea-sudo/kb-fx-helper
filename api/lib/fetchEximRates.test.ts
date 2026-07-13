@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fetchEximRatesWithLookback } from './fetchEximRates.ts'
+import {
+  fetchEximRatesForDate,
+  fetchEximRatesWithLookback,
+} from './fetchEximRates.ts'
 
 const validRows = [
   { result: 1, cur_unit: 'USD', deal_bas_r: '1384.50' },
@@ -7,6 +10,68 @@ const validRows = [
   { result: 1, cur_unit: 'CNY', deal_bas_r: '192.50' },
   { result: 1, cur_unit: 'JPY(100)', deal_bas_r: '945.12' },
 ]
+
+describe('fetchEximRatesForDate', () => {
+  it('response.ok === false이면 api_error를 던진다', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => [],
+    })
+
+    await expect(
+      fetchEximRatesForDate(
+        'test-key',
+        '20260713',
+        new AbortController().signal,
+        fetchImpl,
+      ),
+    ).rejects.toMatchObject({
+      code: 'api_error',
+      message: '환율 API에서 오류가 반환되었습니다.',
+    })
+  })
+
+  it('JSON 파싱 실패 시 api_error를 던진다', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('Unexpected token')
+      },
+    })
+
+    await expect(
+      fetchEximRatesForDate(
+        'test-key',
+        '20260713',
+        new AbortController().signal,
+        fetchImpl,
+      ),
+    ).rejects.toMatchObject({
+      code: 'api_error',
+      message: '환율 API에서 오류가 반환되었습니다.',
+    })
+  })
+
+  it('JSON 결과가 배열이 아니면 api_error를 던진다', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ result: 4 }),
+    })
+
+    await expect(
+      fetchEximRatesForDate(
+        'test-key',
+        '20260713',
+        new AbortController().signal,
+        fetchImpl,
+      ),
+    ).rejects.toMatchObject({
+      code: 'api_error',
+      message: '환율 API에서 오류가 반환되었습니다.',
+    })
+  })
+})
 
 describe('fetchEximRatesWithLookback', () => {
   it('당일 빈 배열 후 전일 데이터를 반환한다', async () => {

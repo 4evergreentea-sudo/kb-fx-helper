@@ -12,6 +12,8 @@ const EXIM_API_URL =
 export const DEFAULT_TOTAL_TIMEOUT_MS = 8000
 export const DEFAULT_LOOKBACK_DAYS = 7
 
+const API_ERROR_MESSAGE = '환율 API에서 오류가 반환되었습니다.'
+
 export type FetchEximRatesErrorCode =
   | 'timeout'
   | 'network'
@@ -66,22 +68,26 @@ export async function fetchEximRatesForDate(
   }
 
   if (!response.ok) {
-    throw new FetchEximRatesError(
-      'api_error',
-      '환율 API에서 오류가 반환되었습니다.',
-    )
+    throw new FetchEximRatesError('api_error', API_ERROR_MESSAGE)
   }
 
-  const rows = (await response.json()) as EximRateRow[]
+  let rows: unknown
+
+  try {
+    rows = await response.json()
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new FetchEximRatesError('api_error', API_ERROR_MESSAGE)
+    }
+
+    throw error
+  }
 
   if (!Array.isArray(rows)) {
-    throw new FetchEximRatesError(
-      'api_error',
-      '환율 API에서 오류가 반환되었습니다.',
-    )
+    throw new FetchEximRatesError('api_error', API_ERROR_MESSAGE)
   }
 
-  return rows
+  return rows as EximRateRow[]
 }
 
 /**

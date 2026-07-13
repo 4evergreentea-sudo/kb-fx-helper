@@ -2,7 +2,10 @@ import type { FormEvent } from 'react'
 import { CURRENCIES, SUPPORTED_CURRENCY_CODES } from '../../entities/currency'
 import type { CurrencyCode } from '../../entities/currency'
 import type { TransactionType } from '../../features/calculate-exchange'
-import type { LoadExchangeRatesMetadata } from '../../features/load-exchange-rates'
+import {
+  OfficialRateField,
+  type LoadExchangeRatesMetadata,
+} from '../../features/load-exchange-rates'
 import { formatNumericInput } from '../../shared/lib'
 
 interface ExchangeFormProps {
@@ -61,9 +64,6 @@ export function ExchangeForm({
     onSubmit()
   }
 
-  const baseRateLabel =
-    currencyCode === 'JPY' ? '기준환율 (100엔 기준)' : '기준환율'
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -117,32 +117,18 @@ export function ExchangeForm({
           </div>
         </div>
 
-        <div className="sm:col-span-2">
-          <label htmlFor="baseRate" className={labelClassName}>
-            {baseRateLabel}
-          </label>
-          <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-            <input
-              id="baseRate"
-              type="text"
-              inputMode="decimal"
-              placeholder="예: 1,340.50"
-              className={inputClassName}
-              value={baseRate}
-              onChange={(event) =>
-                onBaseRateChange(formatNumericInput(event.target.value))
-              }
-            />
-            <button
-              type="button"
-              onClick={onLoadOfficialRate}
-              disabled={isLoadingOfficialRate}
-              className="w-full rounded-md border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-950 sm:w-auto sm:shrink-0"
-            >
-              {isLoadingOfficialRate ? '불러오는 중...' : '공식 환율 불러오기'}
-            </button>
-          </div>
-        </div>
+        <OfficialRateField
+          inputId="baseRate"
+          label="기준환율"
+          currencyCode={currencyCode}
+          baseRate={baseRate}
+          isLoadingOfficialRate={isLoadingOfficialRate}
+          officialRateMetadata={officialRateMetadata}
+          officialRateErrorMessage={officialRateErrorMessage}
+          officialRateWarningMessage={officialRateWarningMessage}
+          onBaseRateChange={onBaseRateChange}
+          onLoadOfficialRate={onLoadOfficialRate}
+        />
 
         <div>
           <label htmlFor="amount" className={labelClassName}>
@@ -191,31 +177,6 @@ export function ExchangeForm({
           />
         </div>
       </div>
-
-      {officialRateMetadata && (
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          조회 기준일: {officialRateMetadata.baseDate} | 출처:{' '}
-          {officialRateMetadata.source}
-        </p>
-      )}
-
-      {officialRateWarningMessage && (
-        <p
-          role="status"
-          className="rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-        >
-          {officialRateWarningMessage}
-        </p>
-      )}
-
-      {officialRateErrorMessage && (
-        <p
-          role="alert"
-          className="rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-400"
-        >
-          {officialRateErrorMessage}
-        </p>
-      )}
 
       {errorMessage && (
         <p

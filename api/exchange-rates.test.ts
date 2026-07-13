@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { FetchEximRatesError } from './lib/fetchEximRates.ts'
 import * as fetchEximModule from './lib/fetchEximRates.ts'
 import { DELETE, GET, POST, PUT } from './exchange-rates.ts'
 
@@ -94,6 +95,36 @@ describe('exchange-rates handler', () => {
     })
   })
 
+  it('fetchEximRatesWithLookback network 오류 시 502를 반환한다', async () => {
+    vi.spyOn(fetchEximModule, 'fetchEximRatesWithLookback').mockRejectedValue(
+      new FetchEximRatesError('network', '환율 서버에 연결하지 못했습니다.'),
+    )
+
+    const response = await GET(
+      new Request('https://example.com/api/exchange-rates'),
+    )
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toEqual({
+      message: '환율 서버에 연결하지 못했습니다.',
+    })
+  })
+
+  it('fetchEximRatesWithLookback api_error 시 502를 반환한다', async () => {
+    vi.spyOn(fetchEximModule, 'fetchEximRatesWithLookback').mockRejectedValue(
+      new FetchEximRatesError('api_error', '환율 API에서 오류가 반환되었습니다.'),
+    )
+
+    const response = await GET(
+      new Request('https://example.com/api/exchange-rates'),
+    )
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toEqual({
+      message: '환율 API에서 오류가 반환되었습니다.',
+    })
+  })
+
   it('응답 본문에 API 키가 포함되지 않는다', async () => {
     vi.spyOn(fetchEximModule, 'fetchEximRatesWithLookback').mockResolvedValue(
       validRates,
@@ -118,5 +149,21 @@ describe('exchange-rates handler', () => {
 
     expect(text).not.toContain('EXIM_API_KEY')
     expect(text).not.toContain('authkey')
+  })
+
+  it('network/api 오류 응답에 API 키와 Exim 원문이 포함되지 않는다', async () => {
+    vi.spyOn(fetchEximModule, 'fetchEximRatesWithLookback').mockRejectedValue(
+      new FetchEximRatesError('api_error', '환율 API에서 오류가 반환되었습니다.'),
+    )
+
+    const response = await GET(
+      new Request('https://example.com/api/exchange-rates'),
+    )
+    const text = await response.text()
+
+    expect(text).not.toContain('test-api-key')
+    expect(text).not.toContain('authkey')
+    expect(text).not.toContain('cur_unit')
+    expect(text).not.toContain('deal_bas_r')
   })
 })

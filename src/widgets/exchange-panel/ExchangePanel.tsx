@@ -7,7 +7,10 @@ import {
   type ExchangeCalculatorResult,
   type TransactionType,
 } from '../../features/calculate-exchange'
-import { useLoadExchangeRates } from '../../features/load-exchange-rates'
+import {
+  shouldApplyOfficialRateToInput,
+  useLoadExchangeRates,
+} from '../../features/load-exchange-rates'
 import { formatRate, parseFormattedNumber, parseNumberOrNull } from '../../shared/lib'
 import { ExchangeForm } from './ExchangeForm'
 import { ExchangeResult } from './ExchangeResult'
@@ -26,6 +29,7 @@ export function ExchangePanel() {
     warningMessage: officialRateWarningMessage,
     metadata: officialRateMetadata,
     loadOfficialRate,
+    resetOfficialRates,
   } = useLoadExchangeRates()
 
   const [currencyCode, setCurrencyCode] = useState<CurrencyCode>(
@@ -58,11 +62,23 @@ export function ExchangePanel() {
     result.krwAmount !== null
 
   async function handleLoadOfficialRate() {
-    const loadedRate = await loadOfficialRate(currencyCode)
+    const requestedCurrency = currencyCode
+    const callResult = await loadOfficialRate(requestedCurrency)
 
-    if (loadedRate !== null) {
-      setBaseRate(formatRate(loadedRate))
+if (
+      shouldApplyOfficialRateToInput(
+        requestedCurrency,
+        currencyCode,
+        callResult,
+      )
+    ) {
+      setBaseRate(formatRate(callResult.baseRate))
     }
+  }
+
+  function handleCurrencyChange(nextCurrency: CurrencyCode) {
+    resetOfficialRates()
+    setCurrencyCode(nextCurrency)
   }
 
   function handleSubmit() {
@@ -171,7 +187,7 @@ export function ExchangePanel() {
           officialRateMetadata={officialRateMetadata}
           officialRateErrorMessage={officialRateErrorMessage}
           officialRateWarningMessage={officialRateWarningMessage}
-          onCurrencyChange={setCurrencyCode}
+          onCurrencyChange={handleCurrencyChange}
           onBaseRateChange={setBaseRate}
           onSpreadRateChange={setSpreadRate}
           onPreferentialRateChange={setPreferentialRate}
