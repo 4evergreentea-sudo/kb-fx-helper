@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react'
 import { CURRENCIES, SUPPORTED_CURRENCY_CODES } from '../../entities/currency'
 import type { CurrencyCode } from '../../entities/currency'
+import { formatNumericInput } from '../../shared/lib'
 
 interface RemittanceFormProps {
   currencyCode: CurrencyCode
@@ -83,10 +84,12 @@ export function RemittanceForm({
             id="foreignAmount"
             type="text"
             inputMode="decimal"
-            placeholder="예: 1000"
+            placeholder="예: 1,000"
             className={inputClassName}
             value={foreignAmount}
-            onChange={(event) => onForeignAmountChange(event.target.value)}
+            onChange={(event) =>
+              onForeignAmountChange(formatNumericInput(event.target.value))
+            }
           />
         </div>
 
@@ -98,10 +101,12 @@ export function RemittanceForm({
             id="remittanceBaseRate"
             type="text"
             inputMode="decimal"
-            placeholder="예: 1340.50"
+            placeholder="예: 1,340.50"
             className={inputClassName}
             value={baseRate}
-            onChange={(event) => onBaseRateChange(event.target.value)}
+            onChange={(event) =>
+              onBaseRateChange(formatNumericInput(event.target.value))
+            }
           />
         </div>
 
@@ -146,10 +151,12 @@ export function RemittanceForm({
             id="remittanceFee"
             type="text"
             inputMode="decimal"
-            placeholder="예: 5000"
+            placeholder="예: 5,000"
             className={inputClassName}
             value={remittanceFee}
-            onChange={(event) => onRemittanceFeeChange(event.target.value)}
+            onChange={(event) =>
+              onRemittanceFeeChange(formatNumericInput(event.target.value))
+            }
           />
         </div>
 
@@ -161,10 +168,12 @@ export function RemittanceForm({
             id="cableFee"
             type="text"
             inputMode="decimal"
-            placeholder="예: 8000"
+            placeholder="예: 8,000"
             className={inputClassName}
             value={cableFee}
-            onChange={(event) => onCableFeeChange(event.target.value)}
+            onChange={(event) =>
+              onCableFeeChange(formatNumericInput(event.target.value))
+            }
           />
         </div>
       </div>

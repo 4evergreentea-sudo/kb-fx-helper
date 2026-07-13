@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { Transaction } from '../../../entities/transaction'
+import type { ExchangeTransaction } from '../../../entities/transaction'
 import { createTransactionsCsvBlob } from './createTransactionsCsvBlob'
 
-const transaction: Transaction = {
+const transaction: ExchangeTransaction = {
   id: 'tx-1',
   createdAt: new Date(2026, 6, 12, 14, 30, 0).toISOString(),
+  recordType: 'exchange',
+  customerName: '테스트고객 A',
   currencyCode: 'USD',
   transactionType: 'buy',
   amount: 500,
@@ -13,6 +15,7 @@ const transaction: Transaction = {
   preferentialRate: 80,
   appliedRate: 1545.39,
   krwAmount: 772695,
+  memo: '',
 }
 
 describe('createTransactionsCsvBlob', () => {
@@ -35,7 +38,7 @@ describe('createTransactionsCsvBlob', () => {
     const blob = createTransactionsCsvBlob([transaction])
     const text = await blob.text()
 
-    expect(text.startsWith('거래일시,통화,거래구분,')).toBe(true)
+    expect(text.startsWith('기록구분,고객명,거래일시,')).toBe(true)
     expect(text).toContain('USD (미국 달러)')
   })
 })

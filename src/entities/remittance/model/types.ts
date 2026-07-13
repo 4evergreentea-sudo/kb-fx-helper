@@ -1,3 +1,5 @@
+import type { ValidationResult } from '../../../shared/model'
+
 /** applyRemittanceRate() 입력 */
 export interface ApplyRemittanceRateParams {
   /** 전신환 매매기준율 */
@@ -28,8 +30,8 @@ export interface CalculateTotalWithdrawalParams {
   cableFee: number
 }
 
-/** validation 함수들의 반환 타입. UI가 boolean과 에러 메시지를 함께 다룰 수 있도록 설계 */
-export interface ValidationResult {
-  valid: boolean
-  message?: string
-}
+/**
+ * validation 함수들의 반환 타입. UI가 boolean과 에러 메시지를 함께 다룰 수 있도록 설계.
+ * 실제 정의는 entities 간 중복/순환 의존을 막기 위해 shared/model에 있다.
+ */
+export type { ValidationResult }

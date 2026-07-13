@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import { CURRENCIES, SUPPORTED_CURRENCY_CODES } from '../../entities/currency'
 import type { CurrencyCode } from '../../entities/currency'
 import type { TransactionType } from '../../features/calculate-exchange'
+import { formatNumericInput } from '../../shared/lib'
 
 interface ExchangeFormProps {
   currencyCode: CurrencyCode
@@ -110,10 +111,12 @@ export function ExchangeForm({
             id="baseRate"
             type="text"
             inputMode="decimal"
-            placeholder="예: 1340.50"
+            placeholder="예: 1,340.50"
             className={inputClassName}
             value={baseRate}
-            onChange={(event) => onBaseRateChange(event.target.value)}
+            onChange={(event) =>
+              onBaseRateChange(formatNumericInput(event.target.value))
+            }
           />
         </div>
 
@@ -128,7 +131,9 @@ export function ExchangeForm({
             placeholder="예: 500"
             className={inputClassName}
             value={amount}
-            onChange={(event) => onAmountChange(event.target.value)}
+            onChange={(event) =>
+              onAmountChange(formatNumericInput(event.target.value))
+            }
           />
         </div>
 

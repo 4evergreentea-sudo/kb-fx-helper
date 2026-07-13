@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
-  ExchangeCalculatorInput,
-  ExchangeCalculatorResult,
-} from '../../calculate-exchange'
+  AddConsultationInput,
+  AddExchangeTransactionInput,
+  AddRemittanceTransactionInput,
+} from '../model/types'
 
 const STORAGE_KEY = 'kb-fx-helper:transactions'
 const PENDING_SYNC_STORAGE_KEY = 'kb-fx-helper:pending-sync'
@@ -56,25 +57,37 @@ function readPendingSyncState(): { pendingAddIds: string[]; pendingDeleteIds: st
   return raw ? JSON.parse(raw) : { pendingAddIds: [], pendingDeleteIds: [] }
 }
 
-const validInput: ExchangeCalculatorInput = {
+const validExchangeInput: AddExchangeTransactionInput = {
+  customerName: '테스트고객 A',
   currencyCode: 'USD',
   baseRate: 1540,
   spreadRate: 1.75,
   preferentialRate: 80,
   transactionType: 'buy',
   amount: 500,
-}
-
-const validResult: ExchangeCalculatorResult = {
   appliedRate: 1545.39,
   krwAmount: 772695,
-  validation: { valid: true },
 }
 
-const invalidResult: ExchangeCalculatorResult = {
-  appliedRate: null,
-  krwAmount: null,
-  validation: { valid: false, message: '숫자를 올바르게 입력해주세요.' },
+const validConsultationInput: AddConsultationInput = {
+  customerName: '테스트고객 B',
+  currencyCode: 'JPY',
+  amount: 100000,
+  memo: '환전 상담 방문, 다음 주 재방문 예정',
+}
+
+const validRemittanceInput: AddRemittanceTransactionInput = {
+  customerName: '테스트고객 C',
+  currencyCode: 'USD',
+  amount: 1000,
+  baseRate: 1400,
+  spreadRate: 1.75,
+  preferentialRate: 80,
+  appliedRate: 1404.9,
+  principalKRW: 1404900,
+  remittanceFee: 5000,
+  cableFee: 8000,
+  totalWithdrawalKRW: 1417900,
 }
 
 describe('transactionStore', () => {
@@ -96,28 +109,64 @@ describe('transactionStore', () => {
     Reflect.deleteProperty(globalThis, 'localStorage')
   })
 
-  describe('localStorage 기본 동작 (회귀)', () => {
-    it('계산이 유효한 경우 거래를 목록 맨 앞에 저장한다', async () => {
+  describe('addTransaction(환전) 기본 동작', () => {
+    it('고객명이 있으면 거래를 목록 맨 앞에 저장한다', async () => {
       const { addTransaction, getSnapshot } = await import('./transactionStore')
 
-      const outcome = addTransaction(validInput, validResult)
+      const outcome = addTransaction(validExchangeInput)
 
       expect(outcome).toEqual({ success: true })
       expect(getSnapshot()).toHaveLength(1)
       expect(getSnapshot()[0]).toMatchObject({
+        recordType: 'exchange',
+        customerName: '테스트고객 A',
         currencyCode: 'USD',
         appliedRate: 1545.39,
         krwAmount: 772695,
+        memo: '',
       })
     })
 
-    it('계산이 유효하지 않으면 저장하지 않고 실패를 반환한다', async () => {
+    it('고객명이 비어 있으면 저장하지 않고 한국어 안내 메시지를 반환한다', async () => {
       const { addTransaction, getSnapshot } = await import('./transactionStore')
 
-      const outcome = addTransaction(validInput, invalidResult)
+      const outcome = addTransaction({ ...validExchangeInput, customerName: '' })
 
-      expect(outcome.success).toBe(false)
+      expect(outcome).toEqual({ success: false, message: '고객명을 입력해주세요.' })
       expect(getSnapshot()).toHaveLength(0)
+    })
+
+    it('고객명이 공백뿐이면 저장하지 않는다', async () => {
+      const { addTransaction, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addTransaction({ ...validExchangeInput, customerName: '   ' })
+
+      expect(outcome).toEqual({ success: false, message: '고객명을 입력해주세요.' })
+      expect(getSnapshot()).toHaveLength(0)
+    })
+
+    it('고객명 앞뒤 공백은 trim되어 저장된다', async () => {
+      const { addTransaction, getSnapshot } = await import('./transactionStore')
+
+      addTransaction({ ...validExchangeInput, customerName: '  테스트고객 A  ' })
+
+      expect(getSnapshot()[0].customerName).toBe('테스트고객 A')
+    })
+
+    it('memo를 생략하면 빈 문자열로 정규화되어 저장된다', async () => {
+      const { addTransaction, getSnapshot } = await import('./transactionStore')
+
+      addTransaction(validExchangeInput)
+
+      expect(getSnapshot()[0].memo).toBe('')
+    })
+
+    it('memo를 입력하면 그대로 저장된다(선택 항목)', async () => {
+      const { addTransaction, getSnapshot } = await import('./transactionStore')
+
+      addTransaction({ ...validExchangeInput, memo: '창구 방문 상담 병행' })
+
+      expect(getSnapshot()[0].memo).toBe('창구 방문 상담 병행')
     })
 
     it('localStorage 저장이 실패하면 메모리 상태를 바꾸지 않고 실패 메시지를 반환한다', async () => {
@@ -133,7 +182,7 @@ describe('transactionStore', () => {
         configurable: true,
       })
 
-      const outcome = addTransaction(validInput, validResult)
+      const outcome = addTransaction(validExchangeInput)
 
       expect(outcome).toEqual({
         success: false,
@@ -147,7 +196,7 @@ describe('transactionStore', () => {
         './transactionStore'
       )
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       const [transaction] = getSnapshot()
 
       const outcome = removeTransaction(transaction.id)
@@ -163,7 +212,7 @@ describe('transactionStore', () => {
       const listener = vi.fn()
       subscribe(listener)
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       expect(listener).toHaveBeenCalledTimes(1)
 
       const [transaction] = getSnapshot()
@@ -178,6 +227,287 @@ describe('transactionStore', () => {
 
       expect(getSnapshot()).toEqual([])
     })
+
+    it('레거시(recordType 없는) localStorage 데이터도 깨지지 않고 로드된다(회귀 방지)', async () => {
+      const legacy = {
+        id: 'legacy-1',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        currencyCode: 'USD',
+        transactionType: 'sell',
+        amount: 1000,
+        baseRate: 1300,
+        spreadRate: 1.5,
+        preferentialRate: 50,
+        appliedRate: 1298.05,
+        krwAmount: 1298050,
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([legacy]))
+
+      const { getSnapshot } = await import('./transactionStore')
+
+      expect(getSnapshot()).toEqual([
+        { ...legacy, recordType: 'exchange', customerName: '', memo: '' },
+      ])
+    })
+  })
+
+  describe('addRemittanceTransaction(해외송금)', () => {
+    it('고객명이 있으면 송금 거래를 저장에 성공한다', async () => {
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addRemittanceTransaction(validRemittanceInput)
+
+      expect(outcome).toEqual({ success: true })
+      expect(getSnapshot()).toHaveLength(1)
+      expect(getSnapshot()[0]).toMatchObject({
+        recordType: 'remittance',
+        customerName: '테스트고객 C',
+        currencyCode: 'USD',
+        amount: 1000,
+        appliedRate: 1404.9,
+        principalKRW: 1404900,
+        remittanceFee: 5000,
+        cableFee: 8000,
+        totalWithdrawalKRW: 1417900,
+        memo: '',
+      })
+    })
+
+    it('고객명 앞뒤 공백은 trim되어 저장된다', async () => {
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      addRemittanceTransaction({ ...validRemittanceInput, customerName: '  테스트고객 C  ' })
+
+      expect(getSnapshot()[0].customerName).toBe('테스트고객 C')
+    })
+
+    it('고객명이 비어 있으면 저장하지 않고 한국어 안내 메시지를 반환한다', async () => {
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addRemittanceTransaction({ ...validRemittanceInput, customerName: '' })
+
+      expect(outcome).toEqual({ success: false, message: '고객명을 입력해주세요.' })
+      expect(getSnapshot()).toHaveLength(0)
+    })
+
+    it('고객명이 공백뿐이면 저장을 거부한다', async () => {
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addRemittanceTransaction({ ...validRemittanceInput, customerName: '   ' })
+
+      expect(outcome).toEqual({ success: false, message: '고객명을 입력해주세요.' })
+      expect(getSnapshot()).toHaveLength(0)
+    })
+
+    it('memo를 생략하면 빈 문자열로 정규화되어 저장된다', async () => {
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      addRemittanceTransaction(validRemittanceInput)
+
+      expect(getSnapshot()[0].memo).toBe('')
+    })
+
+    it('memo를 입력하면 그대로 저장된다(선택 항목)', async () => {
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      addRemittanceTransaction({ ...validRemittanceInput, memo: '유학 자금 송금' })
+
+      expect(getSnapshot()[0].memo).toBe('유학 자금 송금')
+    })
+
+    it.each([
+      ['외화 송금액이 0이면', { amount: 0 }, '외화 송금액은 0보다 커야 합니다.'],
+      ['외화 송금액이 음수이면', { amount: -1 }, '외화 송금액은 0보다 커야 합니다.'],
+      ['적용환율이 0이면', { appliedRate: 0 }, '적용환율은 0보다 커야 합니다.'],
+      ['송금원금이 음수이면', { principalKRW: -1 }, '송금원금은 0 이상이어야 합니다.'],
+      ['송금수수료가 음수이면', { remittanceFee: -1 }, '송금수수료는 0 이상이어야 합니다.'],
+      ['전신료가 음수이면', { cableFee: -1 }, '전신료는 0 이상이어야 합니다.'],
+      [
+        '총 출금액이 음수이면',
+        { totalWithdrawalKRW: -1 },
+        '총 출금액은 0 이상이어야 합니다.',
+      ],
+    ])('%s 저장을 거부한다(잘못된 금액)', async (_label, override, message) => {
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addRemittanceTransaction({ ...validRemittanceInput, ...override })
+
+      expect(outcome).toEqual({ success: false, message })
+      expect(getSnapshot()).toHaveLength(0)
+    })
+
+    it('localStorage에 정상적으로 저장되고 즉시 복원된다', async () => {
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      addRemittanceTransaction(validRemittanceInput)
+
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
+      expect(stored).toHaveLength(1)
+      expect(stored[0]).toMatchObject({ recordType: 'remittance', customerName: '테스트고객 C' })
+      expect(getSnapshot()).toHaveLength(1)
+    })
+
+    it('새로고침(모듈 재로딩) 후에도 저장된 해외송금 거래가 유지된다', async () => {
+      const { addRemittanceTransaction } = await import('./transactionStore')
+      addRemittanceTransaction(validRemittanceInput)
+
+      // 새로고침을 흉내내기 위해 모듈 상태를 완전히 초기화하고 localStorage에서 다시 읽는다.
+      vi.resetModules()
+      const { getSnapshot: getSnapshotAfterReload } = await import('./transactionStore')
+
+      expect(getSnapshotAfterReload()).toHaveLength(1)
+      expect(getSnapshotAfterReload()[0]).toMatchObject({
+        recordType: 'remittance',
+        customerName: '테스트고객 C',
+        totalWithdrawalKRW: 1417900,
+      })
+    })
+
+    it('Supabase가 설정되어 있으면 addTransaction과 동일하게 원격 동기화(insertTransaction)를 호출한다', async () => {
+      isSupabaseConfiguredMock.mockReturnValue(true)
+      ensureAnonymousSessionMock.mockResolvedValue('user-1')
+
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addRemittanceTransaction(validRemittanceInput)
+      await flushAsync()
+
+      expect(outcome).toEqual({ success: true })
+      expect(ensureAnonymousSessionMock).toHaveBeenCalled()
+      expect(insertTransactionMock).toHaveBeenCalledWith(getSnapshot()[0], 'user-1')
+      expect(readPendingSyncState()).toEqual({ pendingAddIds: [], pendingDeleteIds: [] })
+    })
+
+    it('원격 저장에 실패하면 pending add 목록에 기록하고 로컬 상태는 유지된다', async () => {
+      isSupabaseConfiguredMock.mockReturnValue(true)
+      ensureAnonymousSessionMock.mockResolvedValue('user-1')
+      insertTransactionMock.mockResolvedValue({ success: false, message: '실패' })
+
+      const { addRemittanceTransaction, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addRemittanceTransaction(validRemittanceInput)
+      await flushAsync()
+
+      expect(outcome).toEqual({ success: true })
+      const [transaction] = getSnapshot()
+      expect(readPendingSyncState().pendingAddIds).toContain(transaction.id)
+    })
+
+    it('환전/상담 기록과 함께 저장해도 서로 섞이지 않고 recordType으로 구분된다(거래 목록 recordType 분기)', async () => {
+      const { addTransaction, addRemittanceTransaction, addConsultationRecord, getSnapshot } =
+        await import('./transactionStore')
+
+      addTransaction(validExchangeInput)
+      addRemittanceTransaction(validRemittanceInput)
+      addConsultationRecord(validConsultationInput)
+
+      const recordTypes = getSnapshot().map((transaction) => transaction.recordType)
+      expect(recordTypes.sort()).toEqual(['consultation', 'exchange', 'remittance'])
+    })
+  })
+
+  describe('addConsultationRecord(상담 기록)', () => {
+    it('고객명·메모가 있으면 저장에 성공한다', async () => {
+      const { addConsultationRecord, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addConsultationRecord(validConsultationInput)
+
+      expect(outcome).toEqual({ success: true })
+      expect(getSnapshot()).toHaveLength(1)
+      expect(getSnapshot()[0]).toMatchObject({
+        recordType: 'consultation',
+        customerName: '테스트고객 B',
+        memo: '환전 상담 방문, 다음 주 재방문 예정',
+      })
+    })
+
+    it('고객명이 없으면 저장하지 않는다', async () => {
+      const { addConsultationRecord, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addConsultationRecord({ ...validConsultationInput, customerName: '' })
+
+      expect(outcome).toEqual({ success: false, message: '고객명을 입력해주세요.' })
+      expect(getSnapshot()).toHaveLength(0)
+    })
+
+    it('메모가 없으면 저장하지 않는다(상담 기록은 메모 필수)', async () => {
+      const { addConsultationRecord, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addConsultationRecord({ ...validConsultationInput, memo: '   ' })
+
+      expect(outcome).toEqual({ success: false, message: '상담 내용을 메모에 입력해주세요.' })
+      expect(getSnapshot()).toHaveLength(0)
+    })
+
+    it.each([
+      ['0이면', 0],
+      ['음수이면', -1],
+    ])('외화금액이 %s 저장하지 않는다', async (_label, amount) => {
+      const { addConsultationRecord, getSnapshot } = await import('./transactionStore')
+
+      const outcome = addConsultationRecord({ ...validConsultationInput, amount })
+
+      expect(outcome).toEqual({ success: false, message: '외화금액은 0보다 커야 합니다.' })
+      expect(getSnapshot()).toHaveLength(0)
+    })
+
+    it('새로고침(모듈 재로딩) 후에도 저장된 상담 기록이 유지된다', async () => {
+      const { addConsultationRecord } = await import('./transactionStore')
+      addConsultationRecord(validConsultationInput)
+
+      vi.resetModules()
+      const { getSnapshot: getSnapshotAfterReload } = await import('./transactionStore')
+
+      expect(getSnapshotAfterReload()).toHaveLength(1)
+      expect(getSnapshotAfterReload()[0]).toMatchObject({
+        recordType: 'consultation',
+        customerName: '테스트고객 B',
+        memo: '환전 상담 방문, 다음 주 재방문 예정',
+      })
+    })
+
+    it('삭제 후 새로고침(모듈 재로딩)해도 상담 기록이 되살아나지 않는다', async () => {
+      const { addConsultationRecord, removeTransaction, getSnapshot } = await import(
+        './transactionStore'
+      )
+      addConsultationRecord(validConsultationInput)
+      const [saved] = getSnapshot()
+
+      removeTransaction(saved.id)
+
+      vi.resetModules()
+      const { getSnapshot: getSnapshotAfterReload } = await import('./transactionStore')
+
+      expect(getSnapshotAfterReload()).toEqual([])
+    })
+
+    it('Supabase가 설정되어 있으면 addTransaction과 동일하게 원격 동기화(insertTransaction)를 호출한다', async () => {
+      isSupabaseConfiguredMock.mockReturnValue(true)
+      ensureAnonymousSessionMock.mockResolvedValue('user-1')
+
+      const { addConsultationRecord, getSnapshot } = await import('./transactionStore')
+
+      addConsultationRecord(validConsultationInput)
+      await flushAsync()
+
+      expect(ensureAnonymousSessionMock).toHaveBeenCalled()
+      expect(insertTransactionMock).toHaveBeenCalledWith(getSnapshot()[0], 'user-1')
+      expect(readPendingSyncState()).toEqual({ pendingAddIds: [], pendingDeleteIds: [] })
+    })
+
+    it('원격 저장에 실패하면 pending add 목록에 기록하고 로컬 상태는 유지된다', async () => {
+      isSupabaseConfiguredMock.mockReturnValue(true)
+      ensureAnonymousSessionMock.mockResolvedValue('user-1')
+      insertTransactionMock.mockResolvedValue({ success: false, message: '실패' })
+
+      const { addConsultationRecord, getSnapshot } = await import('./transactionStore')
+
+      addConsultationRecord(validConsultationInput)
+      await flushAsync()
+
+      const [record] = getSnapshot()
+      expect(readPendingSyncState().pendingAddIds).toContain(record.id)
+    })
   })
 
   describe('Supabase 미설정 시 localStorage fallback', () => {
@@ -188,7 +518,7 @@ describe('transactionStore', () => {
         './transactionStore'
       )
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       await flushAsync()
       const [transaction] = getSnapshot()
 
@@ -224,7 +554,7 @@ describe('transactionStore', () => {
 
       const { addTransaction, getSnapshot } = await import('./transactionStore')
 
-      const outcome = addTransaction(validInput, validResult)
+      const outcome = addTransaction(validExchangeInput)
       await flushAsync()
 
       expect(outcome).toEqual({ success: true })
@@ -240,7 +570,7 @@ describe('transactionStore', () => {
         './transactionStore'
       )
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       await flushAsync()
       const [transaction] = getSnapshot()
 
@@ -252,12 +582,37 @@ describe('transactionStore', () => {
       expect(readPendingSyncState().pendingDeleteIds).toContain(transaction.id)
     })
 
+    it('해외송금·상담 기록도 pending add 재시도(syncNow) 대상에 포함된다', async () => {
+      insertTransactionMock.mockResolvedValue({ success: false, message: '실패' })
+
+      const { addRemittanceTransaction, addConsultationRecord, getSnapshot, syncNow } =
+        await import('./transactionStore')
+
+      addRemittanceTransaction(validRemittanceInput)
+      addConsultationRecord(validConsultationInput)
+      await flushAsync()
+
+      const [consultation, remittance] = getSnapshot()
+      expect(readPendingSyncState().pendingAddIds.sort()).toEqual(
+        [remittance.id, consultation.id].sort(),
+      )
+
+      insertTransactionMock.mockResolvedValue({ success: true })
+      fetchAllTransactionsMock.mockResolvedValue({ success: true, transactions: [] })
+
+      await syncNow()
+
+      expect(readPendingSyncState().pendingAddIds).toEqual([])
+      expect(insertTransactionMock).toHaveBeenCalledWith(remittance, 'user-1')
+      expect(insertTransactionMock).toHaveBeenCalledWith(consultation, 'user-1')
+    })
+
     it('재시도(syncNow)에 성공하면 pending add 상태가 제거된다', async () => {
       insertTransactionMock.mockResolvedValueOnce({ success: false, message: '실패' })
 
       const { addTransaction, getSnapshot, syncNow } = await import('./transactionStore')
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       await flushAsync()
       const [transaction] = getSnapshot()
 
@@ -279,7 +634,7 @@ describe('transactionStore', () => {
         './transactionStore'
       )
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       await flushAsync()
       const [transaction] = getSnapshot()
 
@@ -304,7 +659,7 @@ describe('transactionStore', () => {
         './transactionStore'
       )
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       await flushAsync()
       const [transaction] = getSnapshot()
 
@@ -328,7 +683,7 @@ describe('transactionStore', () => {
         './transactionStore'
       )
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       await flushAsync()
       const [transaction] = getSnapshot()
 
@@ -350,7 +705,7 @@ describe('transactionStore', () => {
         './transactionStore'
       )
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       await flushAsync()
       const [transaction] = getSnapshot()
 
@@ -365,7 +720,7 @@ describe('transactionStore', () => {
     it('원격 fetch 자체가 실패하면 로컬 데이터는 그대로 유지된다', async () => {
       const { addTransaction, getSnapshot, syncNow } = await import('./transactionStore')
 
-      addTransaction(validInput, validResult)
+      addTransaction(validExchangeInput)
       await flushAsync()
       expect(getSnapshot()).toHaveLength(1)
 
@@ -374,6 +729,85 @@ describe('transactionStore', () => {
       await syncNow()
 
       expect(getSnapshot()).toHaveLength(1)
+    })
+
+    it(
+      '원격 스키마에 customer_name/memo가 없어 빈 값으로 오더라도, ' +
+        '같은 id의 로컬 customerName/memo가 있으면 동기화 후에도 유지된다(호환 병합)',
+      async () => {
+        const { addTransaction, getSnapshot, syncNow } = await import('./transactionStore')
+
+        addTransaction({
+          ...validExchangeInput,
+          customerName: '테스트고객 A',
+          memo: '여행 환전',
+        })
+        await flushAsync()
+        const [localTransaction] = getSnapshot()
+
+        // 현재 Supabase 스키마에는 customer_name/memo 컬럼이 없어
+        // fromTransactionRow()가 항상 빈 문자열로 합성한 값을 반환한다고 가정한다.
+        const remoteRow = {
+          ...localTransaction,
+          customerName: '',
+          memo: '',
+        }
+        fetchAllTransactionsMock.mockResolvedValue({ success: true, transactions: [remoteRow] })
+
+        await syncNow()
+
+        const [syncedTransaction] = getSnapshot()
+        expect(syncedTransaction.customerName).toBe('테스트고객 A')
+        expect(syncedTransaction.memo).toBe('여행 환전')
+      },
+    )
+
+    it('로컬 customerName/memo가 비어 있으면(예: 마이그레이션된 레거시 기록) 원격 값을 사용한다', async () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify([
+          {
+            id: 'legacy-1',
+            createdAt: '2025-01-01T00:00:00.000Z',
+            recordType: 'exchange',
+            customerName: '',
+            memo: '',
+            currencyCode: 'USD',
+            transactionType: 'buy',
+            amount: 500,
+            baseRate: 1540,
+            spreadRate: 1.75,
+            preferentialRate: 80,
+            appliedRate: 1545.39,
+            krwAmount: 772695,
+          },
+        ]),
+      )
+
+      const { getSnapshot, syncNow } = await import('./transactionStore')
+
+      const remoteRow = {
+        id: 'legacy-1',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        recordType: 'exchange',
+        customerName: '테스트고객 A(원격 갱신)',
+        memo: '원격에서 갱신된 메모',
+        currencyCode: 'USD',
+        transactionType: 'buy',
+        amount: 500,
+        baseRate: 1540,
+        spreadRate: 1.75,
+        preferentialRate: 80,
+        appliedRate: 1545.39,
+        krwAmount: 772695,
+      }
+      fetchAllTransactionsMock.mockResolvedValue({ success: true, transactions: [remoteRow] })
+
+      await syncNow()
+
+      const [syncedTransaction] = getSnapshot()
+      expect(syncedTransaction.customerName).toBe('테스트고객 A(원격 갱신)')
+      expect(syncedTransaction.memo).toBe('원격에서 갱신된 메모')
     })
   })
 })

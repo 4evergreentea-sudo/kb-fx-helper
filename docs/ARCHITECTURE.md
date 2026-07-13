@@ -114,7 +114,7 @@ graph TD
 
 - `currency`: 통화(USD, JPY 등) 도메인 모델과 통화별 표시 규칙(예: JPY 100단위 고시)을 정의한다.
 - `rate`: 환율 도메인 모델과 환율 관련 순수 계산 규칙(반올림 순서 등)을 정의한다.
-- `transaction`: 거래기록 도메인 모델(환종, 금액, 환율, 환산 금액, 처리 시각)을 정의한다. 개인정보는 포함하지 않는다.
+- `transaction`: 거래기록 도메인 모델. `recordType`(`'exchange' | 'remittance' | 'consultation'`)으로 구분되는 union 타입(`Transaction = ExchangeTransaction | RemittanceTransaction | ConsultationRecord`)이며, 환전 기록은 환종·금액·환율·환산 금액·처리 시각을, 해외송금 기록은 환종·외화송금액·전신환 적용환율·송금 원금·송금수수료·전신료·총 출금액·처리 시각을, 상담 기록은 계산 필드 없이 환종·금액·처리 시각만 갖는다. 세 기록 모두 과제 구현을 위해 최소한의 개인정보인 고객명(신규 저장 시 필수, 테스트용 이름/가명만 허용)과 메모(환전·해외송금은 선택, 상담은 필수)를 포함한다. 자세한 정책은 `.cursor/rules/40-security.mdc`를 따른다.
 
 **shared**
 
@@ -132,8 +132,8 @@ graph TD
 | 도메인 관심사 | 담당 Layer/Slice | 책임 | 구현 상태 |
 |---|---|---|---|
 | 환율 계산 | `features/calculate-exchange` + `entities/rate`, `currency` | 입력 검증 → 적용환율 반올림 → 금액 계산 → 원화 정수 반올림 순서로 처리하는 순수 함수. JPY는 100단위 고시가를 1단위로 환산 | 설계 완료, 구현 예정 |
-| 거래기록 | `entities/transaction` + `features/add-transaction`, `search-transaction` | 거래 도메인 모델 정의, 등록/조회 유스케이스. 개인정보 미포함 | 설계 완료, 구현 예정 |
-| 송금 계산 | `features/calculate-exchange` 확장 또는 신규 feature (예: `calculate-remittance`) | 환율 계산에 수수료 규칙을 추가한 확장 계산 (PRD 선택 기능) | 미착수 |
+| 거래기록 | `entities/transaction` + `features/add-transaction`, `search-transaction` | 거래(환전/해외송금/상담) 도메인 모델 정의, 등록/조회/검색 유스케이스. 신규 저장 시 고객명 필수(테스트용 이름/가명만 허용), 메모는 환전·해외송금 선택·상담 필수 | 구현 완료(환전·해외송금·상담 저장, 검색, Supabase 동기화 모두 포함) |
+| 송금 계산 | `features/calculate-remittance` + `entities/remittance`, `currency` | 전신환 적용환율·송금 원금·총 출금액(수수료 포함) 계산 (PRD 선택 기능). `add-transaction`은 이 feature를 직접 import하지 않고, widget이 계산 결과를 `AddRemittanceTransactionInput`으로 조립해 전달 | 구현 완료 |
 | localStorage | `shared/api` | 거래기록 저장/조회 어댑터. 저장 실패 시 사용자 안내, 계산 기능은 계속 동작 | 설계 완료, 구현 예정 |
 | 외부 API | `shared/api` | 실시간 환율 조회 어댑터(한국수출입은행). 실패 시 마지막 localStorage 값으로 fallback (PRD 선택 기능) | 미착수 |
 
@@ -240,8 +240,10 @@ Supabase 연동은 `entities`와 `shared/api`의 인터페이스만 유지하면
 
 **인증**: 로그인 UI 없이 Supabase Auth의 익명 로그인(`signInAnonymously`)만 사용한다. `features/add-transaction/lib/supabaseAuth.ts`가 세션을 캐시하고, 발급된 `user_id`로 자신의 행만 RLS를 통과한다.
 
-**테이블**: `transactions(id text pk, created_at, currency_code, transaction_type, amount, base_rate, spread_rate, preferential_rate, applied_rate, krw_amount, user_id uuid → auth.users(id))`. 정의는 `docs/supabase-schema.sql` 참고. `(user_id, created_at desc)` 복합 인덱스로 목록 조회를 커버하고, `authenticated` 역할 + `auth.uid() = user_id` 조건의 select/insert/delete 정책만 존재한다(공개 `anon` 정책 없음).
+**테이블**: `transactions(id text pk, created_at, record_type, customer_name, memo, currency_code, amount, transaction_type, krw_amount, base_rate, spread_rate, preferential_rate, applied_rate, principal_krw, remittance_fee, cable_fee, total_withdrawal_krw, user_id uuid → auth.users(id))`. `record_type`으로 환전(`exchange`)/해외송금(`remittance`)/상담(`consultation`)을 구분하며, 각 종류에 해당하지 않는 계산 컬럼은 `null`이다(예: 상담 행은 `base_rate` 등이 모두 `null`). 신규 설치는 `docs/supabase-schema.sql`을, 기존 exchange 전용 테이블 확장은 `docs/supabase-migration-required-records.sql`을 참고한다. `(user_id, created_at desc)` 복합 인덱스로 목록 조회를 커버하고, `authenticated` 역할 + `auth.uid() = user_id` 조건의 select/insert/delete 정책만 존재한다(공개 `anon` 정책 없음).
 
-**동기화 모델**: localStorage 저장/삭제는 항상 동기적으로 즉시 반영되어 UI가 네트워크를 기다리지 않는다. Supabase 반영은 별도로 시도되며, 실패하면 `features/add-transaction/lib/pendingSyncStore.ts`가 추가 실패(pending add)·삭제 실패(tombstone)를 localStorage에 기록해 다음 동기화(`syncNow`)에서 재시도한다. 원격 목록을 병합할 때는 tombstone id를 제외해, 삭제했지만 원격 반영에 실패한 항목이 되살아나지 않도록 한다. `useTransactionHistory`가 마운트 시 1회, 수동 재동기화 버튼, `online` 이벤트 복귀 시 각각 동기화를 트리거한다.
+**동기화 모델**: localStorage 저장/삭제는 항상 동기적으로 즉시 반영되어 UI가 네트워크를 기다리지 않는다. Supabase 반영은 환전/해외송금/상담 세 recordType 모두에 대해 별도로 시도되며, 실패하면 `features/add-transaction/lib/pendingSyncStore.ts`가 추가 실패(pending add)·삭제 실패(tombstone)를 localStorage에 기록해 다음 동기화(`syncNow`)에서 재시도한다. 원격 목록을 병합할 때는 tombstone id를 제외해, 삭제했지만 원격 반영에 실패한 항목이 되살아나지 않도록 한다. `useTransactionHistory`가 마운트 시 1회, 수동 재동기화 버튼, `online` 이벤트 복귀 시 각각 동기화를 트리거한다.
 
 **상태 노출**: `useTransactionHistory`가 `isSupabaseEnabled`/`isSyncing`/`syncMessage`/`syncError`를 노출하고, `TransactionHistoryPanel`이 이를 "로컬 저장"/"클라우드 동기화 중"/"클라우드 동기화 완료"/"클라우드 동기화 실패 — 로컬에는 저장됨"으로 표시한다.
+
+**Transaction union 전체 동기화 (구현 완료)**: `transactionSupabaseMapper`가 `toTransactionRow`/`fromTransactionRow`로 `ExchangeTransaction`/`RemittanceTransaction`/`ConsultationRecord`를 모두 양방향 매핑한다. `record_type` 컬럼으로 union 타입을 판별하고, numeric 컬럼이 문자열로 내려와도 안전하게 숫자로 변환하며, 형태가 올바르지 않은 row(숫자로 변환할 수 없는 계산 필드, 지원하지 않는 통화 코드, 알 수 없는 `record_type` 등)는 앱을 중단시키지 않고 결과에서 제외한다. `supabaseTransactionRepository`의 `insertTransaction`/`fetchAllTransactions`/`removeRemoteTransaction`은 세 recordType 모두를 대상으로 동작하며, `transactionStore`의 `addTransaction`/`addRemittanceTransaction`/`addConsultationRecord`가 동일한 방식으로 localStorage 저장 후 Supabase 추가를 best-effort로 시도한다. 마이그레이션 전에 저장된 레거시 row(`record_type`/`customer_name`/`memo`가 없는 행)는 매퍼가 `exchange`/빈 문자열로 안전하게 보정하며, 병합 시에는 로컬에 이미 있는 실제 값이 원격의 빈 값으로 덮어써지지 않도록 로컬 값을 우선한다(`preferLocalCompatFields`).

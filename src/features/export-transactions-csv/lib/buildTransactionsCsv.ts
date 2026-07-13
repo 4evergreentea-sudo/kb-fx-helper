@@ -3,6 +3,8 @@ import { escapeCsvField } from './escapeCsvField'
 import { mapTransactionToRow } from './mapTransactionToRow'
 
 const CSV_HEADER = [
+  '기록구분',
+  '고객명',
   '거래일시',
   '통화',
   '거래구분',
@@ -12,6 +14,11 @@ const CSV_HEADER = [
   '우대율',
   '적용환율',
   '원화금액',
+  '송금원금',
+  '송금수수료',
+  '전신료',
+  '총출금액',
+  '메모',
 ]
 
 const LINE_BREAK = '\r\n'
