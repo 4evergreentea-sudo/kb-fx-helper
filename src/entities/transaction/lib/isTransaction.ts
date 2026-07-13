@@ -39,6 +39,21 @@ function hasValidBaseFields(candidate: Record<string, unknown>): boolean {
 }
 
 /**
+ * 환전(exchange)·해외송금(remittance) 거래가 공통으로 갖는 환율 필드(기준환율/스프레드율/
+ * 우대율/적용환율)가 모두 유한수인지 검사한다. 이 type guard는 "형태가 숫자다"만 검사할 뿐,
+ * 양수/0 여부 같은 업무 규칙은 검사하지 않는다(0도 구조적으로는 유효한 finite number다).
+ * 값의 범위(0 초과 등)를 강제하는 업무 검증은 validateTransactionRecord.ts가 별도로 담당한다.
+ */
+function hasValidRateFields(candidate: Record<string, unknown>): boolean {
+  return (
+    isFiniteNumber(candidate.baseRate) &&
+    isFiniteNumber(candidate.spreadRate) &&
+    isFiniteNumber(candidate.preferentialRate) &&
+    isFiniteNumber(candidate.appliedRate)
+  )
+}
+
+/**
  * localStorage/Supabase 등 외부에서 읽어온 값이 유효한 ExchangeTransaction 형태인지 검사한다.
  * migrateLegacyTransaction()으로 정규화된 값을 입력으로 받는 것을 전제로 한다.
  */
@@ -54,10 +69,7 @@ export function isExchangeTransaction(value: unknown): value is ExchangeTransact
     hasValidBaseFields(candidate) &&
     typeof candidate.transactionType === 'string' &&
     TRANSACTION_TYPES.includes(candidate.transactionType) &&
-    isFiniteNumber(candidate.baseRate) &&
-    isFiniteNumber(candidate.spreadRate) &&
-    isFiniteNumber(candidate.preferentialRate) &&
-    isFiniteNumber(candidate.appliedRate) &&
+    hasValidRateFields(candidate) &&
     isFiniteNumber(candidate.krwAmount)
   )
 }
@@ -76,10 +88,7 @@ export function isRemittanceTransaction(value: unknown): value is RemittanceTran
   return (
     candidate.recordType === 'remittance' &&
     hasValidBaseFields(candidate) &&
-    isFiniteNumber(candidate.baseRate) &&
-    isFiniteNumber(candidate.spreadRate) &&
-    isFiniteNumber(candidate.preferentialRate) &&
-    isFiniteNumber(candidate.appliedRate) &&
+    hasValidRateFields(candidate) &&
     isFiniteNumber(candidate.principalKRW) &&
     isFiniteNumber(candidate.remittanceFee) &&
     isFiniteNumber(candidate.cableFee) &&

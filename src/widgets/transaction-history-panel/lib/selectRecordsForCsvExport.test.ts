@@ -46,11 +46,7 @@ describe('selectRecordsForCsvExport', () => {
     expect(selectRecordsForCsvExport(allRecords, '존재하지않는키워드')).toEqual([])
   })
 
-  it('화면에 표시되는 필터링 결과와 CSV로 전달되는 목록이 항상 동일하다(단일 소스)', () => {
-    const keyword = '김철수'
-    const displayedRecords = selectRecordsForCsvExport(allRecords, keyword)
-    const csvRecords = selectRecordsForCsvExport(allRecords, keyword)
-
-    expect(csvRecords).toEqual(displayedRecords)
+  it('검색어 앞뒤 공백을 trim한 뒤 필터링한다(filterTransactionRecords와 동일 규칙)', () => {
+    expect(selectRecordsForCsvExport(allRecords, '  홍길동  ')).toEqual([exchangeRecord])
   })
 })

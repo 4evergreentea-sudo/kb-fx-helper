@@ -62,6 +62,7 @@ export function TransactionSaveForm({
           <input
             id="customerName"
             type="text"
+            required
             placeholder="예: 홍길동 (테스트용 이름/가명)"
             className={inputClassName}
             value={customerName}

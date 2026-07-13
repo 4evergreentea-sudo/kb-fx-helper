@@ -110,6 +110,74 @@ describe('isConsultationRecord', () => {
   })
 })
 
+describe('숫자 필드 경계값(NaN/Infinity/음수/0)', () => {
+  // 이 type guard는 "형태가 숫자다(finite number)"만 검사한다. 값의 범위(0 초과 등)를
+  // 강제하는 업무 검증(양수 여부 등)은 validateTransactionRecord.ts가 별도로 담당하므로,
+  // 음수나 0은 여기서는 "계약상 허용"되고 NaN/Infinity만 "금지"된다.
+  it.each(['baseRate', 'krwAmount'] as const)(
+    'exchange의 %s가 NaN이면 false다',
+    (field) => {
+      expect(isExchangeTransaction({ ...validExchange, [field]: Number.NaN })).toBe(false)
+    },
+  )
+
+  it.each(['baseRate', 'krwAmount'] as const)(
+    'exchange의 %s가 Infinity/-Infinity이면 false다',
+    (field) => {
+      expect(isExchangeTransaction({ ...validExchange, [field]: Infinity })).toBe(false)
+      expect(isExchangeTransaction({ ...validExchange, [field]: -Infinity })).toBe(false)
+    },
+  )
+
+  it.each(['baseRate', 'krwAmount'] as const)(
+    'exchange의 %s가 음수여도 구조적으로는 유효하다(양수 검증은 여기서 하지 않음)',
+    (field) => {
+      expect(isExchangeTransaction({ ...validExchange, [field]: -1 })).toBe(true)
+    },
+  )
+
+  it.each(['baseRate', 'krwAmount'] as const)(
+    'exchange의 %s가 0이어도 계약상 허용된다(finite number이므로 구조 검증은 통과)',
+    (field) => {
+      expect(isExchangeTransaction({ ...validExchange, [field]: 0 })).toBe(true)
+    },
+  )
+
+  it.each(['baseRate', 'totalWithdrawalKRW'] as const)(
+    'remittance의 %s가 NaN이면 false다',
+    (field) => {
+      expect(isRemittanceTransaction({ ...validRemittance, [field]: Number.NaN })).toBe(false)
+    },
+  )
+
+  it.each(['baseRate', 'totalWithdrawalKRW'] as const)(
+    'remittance의 %s가 Infinity/-Infinity이면 false다',
+    (field) => {
+      expect(isRemittanceTransaction({ ...validRemittance, [field]: Infinity })).toBe(false)
+      expect(isRemittanceTransaction({ ...validRemittance, [field]: -Infinity })).toBe(false)
+    },
+  )
+
+  it.each(['baseRate', 'totalWithdrawalKRW'] as const)(
+    'remittance의 %s가 음수여도 구조적으로는 유효하다(양수 검증은 여기서 하지 않음)',
+    (field) => {
+      expect(isRemittanceTransaction({ ...validRemittance, [field]: -1 })).toBe(true)
+    },
+  )
+
+  it.each(['baseRate', 'totalWithdrawalKRW'] as const)(
+    'remittance의 %s가 0이어도 계약상 허용된다(finite number이므로 구조 검증은 통과)',
+    (field) => {
+      expect(isRemittanceTransaction({ ...validRemittance, [field]: 0 })).toBe(true)
+    },
+  )
+
+  it('문자열 "0"처럼 숫자가 아닌 타입은 금지된다(형태 자체가 다름)', () => {
+    expect(isExchangeTransaction({ ...validExchange, krwAmount: '0' })).toBe(false)
+    expect(isRemittanceTransaction({ ...validRemittance, totalWithdrawalKRW: '0' })).toBe(false)
+  })
+})
+
 describe('isTransaction', () => {
   it('환전/해외송금/상담 기록 모두 true로 판별한다(거래 목록 recordType 분기 회귀 방지)', () => {
     expect(isTransaction(validExchange)).toBe(true)

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTransactionHistory } from '../../features/add-transaction'
 import { exportTransactionsToCsv } from '../../features/export-transactions-csv'
 import { ConsultationRecordForm } from './ConsultationRecordForm'
+import { getCsvExportButtonLabel } from './lib/getCsvExportButtonLabel'
 import { getSyncStatusLabel, getSyncStatusVariant } from './lib/getSyncStatusLabel'
 import { selectRecordsForCsvExport } from './lib/selectRecordsForCsvExport'
 import { TransactionRow } from './TransactionRow'
@@ -30,6 +31,8 @@ export function TransactionHistoryPanel() {
   const [keyword, setKeyword] = useState('')
 
   const filteredRecords = selectRecordsForCsvExport(transactions, keyword)
+  const csvExportButtonLabel = getCsvExportButtonLabel(keyword)
+  const isSearchActive = keyword.trim().length > 0
 
   const syncStatusLabel = getSyncStatusLabel({
     isSupabaseEnabled,
@@ -70,14 +73,18 @@ export function TransactionHistoryPanel() {
         </h2>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            전체 {transactions.length}건
+            {isSearchActive
+              ? `검색 결과 ${filteredRecords.length}건`
+              : `전체 ${transactions.length}건`}
           </span>
           <button
             type="button"
             onClick={handleExportCsv}
-            className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            disabled={filteredRecords.length === 0}
+            aria-label={`${csvExportButtonLabel} (${filteredRecords.length}건)`}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
           >
-            CSV로 내보내기
+            {csvExportButtonLabel} ({filteredRecords.length}건)
           </button>
         </div>
       </div>
@@ -126,7 +133,7 @@ export function TransactionHistoryPanel() {
         />
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            검색 결과 {filteredRecords.length}건
+            {isSearchActive ? '검색 결과' : '목록'} {filteredRecords.length}건
           </span>
           <button
             type="button"

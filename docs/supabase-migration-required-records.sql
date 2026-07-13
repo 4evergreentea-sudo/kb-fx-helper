@@ -59,6 +59,57 @@ alter table public.transactions
   add constraint transactions_record_type_check
   check (record_type in ('exchange', 'remittance', 'consultation'));
 
+-- 6-1) recordType별로 어떤 계산 컬럼이 필수/금지인지를 DB 레벨에서도 강제한다.
+--      (features/add-transaction/lib/transactionSupabaseMapper.ts의 toTransactionRow()가
+--       만드는 조합과 정확히 일치해야 한다.) 이 migration 이전에 저장된 행은 전부
+--       exchange이며, 원래 스키마에서 이 컬럼들이 이미 not null이었고 해외송금 전용
+--       컬럼(principal_krw 등)은 방금 추가되어 전부 null이므로 아래 exchange 조건을
+--       위반하지 않는다. 같은 이름의 제약이 이미 있으면 먼저 제거한다.
+alter table public.transactions drop constraint if exists transactions_record_type_fields_check;
+alter table public.transactions
+  add constraint transactions_record_type_fields_check
+  check (
+    (
+      record_type = 'exchange'
+      and transaction_type is not null
+      and base_rate is not null
+      and spread_rate is not null
+      and preferential_rate is not null
+      and applied_rate is not null
+      and krw_amount is not null
+      and principal_krw is null
+      and remittance_fee is null
+      and cable_fee is null
+      and total_withdrawal_krw is null
+    )
+    or (
+      record_type = 'remittance'
+      and transaction_type is null
+      and krw_amount is null
+      and base_rate is not null
+      and spread_rate is not null
+      and preferential_rate is not null
+      and applied_rate is not null
+      and principal_krw is not null
+      and remittance_fee is not null
+      and cable_fee is not null
+      and total_withdrawal_krw is not null
+    )
+    or (
+      record_type = 'consultation'
+      and transaction_type is null
+      and base_rate is null
+      and spread_rate is null
+      and preferential_rate is null
+      and applied_rate is null
+      and krw_amount is null
+      and principal_krw is null
+      and remittance_fee is null
+      and cable_fee is null
+      and total_withdrawal_krw is null
+    )
+  );
+
 -- 7) 기존 RLS 정책은 그대로 유지한다(변경하지 않음). 아래 GRANT만 추가로 보장한다.
 grant usage on schema public to authenticated;
 

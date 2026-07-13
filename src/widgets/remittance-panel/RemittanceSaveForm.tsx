@@ -63,6 +63,7 @@ export function RemittanceSaveForm({
           <input
             id="remittanceCustomerName"
             type="text"
+            required
             placeholder="예: 홍길동 (테스트용 이름/가명)"
             className={inputClassName}
             value={customerName}

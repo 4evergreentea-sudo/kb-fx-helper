@@ -96,14 +96,22 @@ export function toTransactionRow(transaction: Transaction, userId: string): Tran
  * numeric 컬럼 값을 숫자로 안전하게 변환한다.
  * Postgres numeric 컬럼은 정밀도 보존을 위해 문자열로 내려올 수 있고, 해당하지 않는
  * 계산 컬럼은 null일 수 있다. 숫자로 변환할 수 없으면 null을 반환한다(예외를 던지지 않음).
+ * 빈 문자열('')이나 공백만 있는 문자열('   ')은 `Number()`가 0으로 취급해버리므로,
+ * trim 후 빈 문자열이면 숫자로 변환하지 않고 null로 처리한다.
  */
-function toNumberOrNull(value: number | string | null | undefined): number | null {
+export function toNumberOrNull(value: number | string | null | undefined): number | null {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : null
   }
 
   if (typeof value === 'string') {
-    const parsed = Number(value)
+    const trimmed = value.trim()
+
+    if (trimmed.length === 0) {
+      return null
+    }
+
+    const parsed = Number(trimmed)
     return Number.isFinite(parsed) ? parsed : null
   }
 

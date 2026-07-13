@@ -84,6 +84,7 @@ export function ConsultationRecordForm() {
           <input
             id="consultationCustomerName"
             type="text"
+            required
             placeholder="예: 홍길동 (테스트용 이름/가명)"
             className={inputClassName}
             value={customerName}
@@ -97,6 +98,7 @@ export function ConsultationRecordForm() {
           </label>
           <select
             id="consultationCurrencyCode"
+            required
             className={inputClassName}
             value={currencyCode}
             onChange={(event) => setCurrencyCode(event.target.value as CurrencyCode)}
@@ -117,6 +119,7 @@ export function ConsultationRecordForm() {
             id="consultationAmount"
             type="text"
             inputMode="decimal"
+            required
             placeholder="예: 1,000"
             className={inputClassName}
             value={amount}
@@ -131,6 +134,7 @@ export function ConsultationRecordForm() {
           <input
             id="consultationMemo"
             type="text"
+            required
             placeholder="예: 환전 상담 방문, 다음 주 재방문 예정"
             className={inputClassName}
             value={memo}

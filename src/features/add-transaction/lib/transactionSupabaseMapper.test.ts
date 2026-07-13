@@ -4,7 +4,7 @@ import type {
   ExchangeTransaction,
   RemittanceTransaction,
 } from '../../../entities/transaction'
-import { fromTransactionRow, toTransactionRow } from './transactionSupabaseMapper'
+import { fromTransactionRow, toNumberOrNull, toTransactionRow } from './transactionSupabaseMapper'
 import type { TransactionRow } from './transactionSupabaseMapper'
 
 const exchange: ExchangeTransaction = {
@@ -67,6 +67,35 @@ const legacyExchangeRow = {
 } as unknown as TransactionRow
 
 describe('transactionSupabaseMapper', () => {
+  describe('toNumberOrNull', () => {
+    it('빈 문자열과 공백만 있는 문자열은 null을 반환한다', () => {
+      expect(toNumberOrNull('')).toBeNull()
+      expect(toNumberOrNull('   ')).toBeNull()
+    })
+
+    it('trim 후 정상 숫자 문자열은 Number로 변환한다', () => {
+      expect(toNumberOrNull('0')).toBe(0)
+      expect(toNumberOrNull('123.45')).toBe(123.45)
+      expect(toNumberOrNull('  99  ')).toBe(99)
+    })
+
+    it('NaN/Infinity 문자열과 비정상 숫자는 null을 반환한다', () => {
+      expect(toNumberOrNull('NaN')).toBeNull()
+      expect(toNumberOrNull('Infinity')).toBeNull()
+      expect(toNumberOrNull('-Infinity')).toBeNull()
+      expect(toNumberOrNull('not-a-number')).toBeNull()
+    })
+
+    it('number/null/undefined는 기존 규칙대로 처리한다', () => {
+      expect(toNumberOrNull(0)).toBe(0)
+      expect(toNumberOrNull(42.5)).toBe(42.5)
+      expect(toNumberOrNull(Number.NaN)).toBeNull()
+      expect(toNumberOrNull(Number.POSITIVE_INFINITY)).toBeNull()
+      expect(toNumberOrNull(null)).toBeNull()
+      expect(toNumberOrNull(undefined)).toBeNull()
+    })
+  })
+
   describe('exchange', () => {
     it('toTransactionRow는 record_type/customer_name/memo와 계산 필드를 채우고, 해당 없는 컬럼은 null이다', () => {
       const row = toTransactionRow(exchange, 'user-1')
