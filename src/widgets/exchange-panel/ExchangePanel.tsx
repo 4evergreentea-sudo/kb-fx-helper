@@ -65,7 +65,7 @@ export function ExchangePanel() {
     const requestedCurrency = currencyCode
     const callResult = await loadOfficialRate(requestedCurrency)
 
-if (
+    if (
       shouldApplyOfficialRateToInput(
         requestedCurrency,
         currencyCode,
@@ -73,6 +73,8 @@ if (
       )
     ) {
       setBaseRate(formatRate(callResult.baseRate))
+      setLastInput(null)
+      setResult(null)
     }
   }
 

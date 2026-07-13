@@ -124,6 +124,8 @@ describe('fetchOfficialExchangeRates', () => {
   })
 
   it('옵션 객체의 fetchImpl이 실제 호출된다', async () => {
+    const originalFetch = globalThis.fetch
+    const globalFetch = vi.fn()
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -133,15 +135,21 @@ describe('fetchOfficialExchangeRates', () => {
         rates: { USD: 1384.5 },
       }),
     })
-    const globalFetch = vi.fn()
+    globalThis.fetch = globalFetch as typeof fetch
 
-    await fetchOfficialExchangeRates({
-      fetchImpl,
-      timeoutMs: 1000,
-    })
+    try {
+      await fetchOfficialExchangeRates({
+        fetchImpl,
+        timeoutMs: 1000,
+      })
 
-    expect(fetchImpl).toHaveBeenCalledOnce()
-    expect(globalFetch).not.toHaveBeenCalled()
+      expect(fetchImpl).toHaveBeenCalledOnce()
+      expect(globalFetch).not.toHaveBeenCalled()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+
+    expect(globalThis.fetch).toBe(originalFetch)
   })
 
   it('옵션 객체에서 fetchImpl 생략 시 global fetch를 사용한다', async () => {
