@@ -1,6 +1,10 @@
 import type { FormEvent } from 'react'
 import { CURRENCIES, SUPPORTED_CURRENCY_CODES } from '../../entities/currency'
 import type { CurrencyCode } from '../../entities/currency'
+import {
+  OfficialRateField,
+  type LoadExchangeRatesMetadata,
+} from '../../features/load-exchange-rates'
 import { formatNumericInput } from '../../shared/lib'
 
 interface RemittanceFormProps {
@@ -12,6 +16,10 @@ interface RemittanceFormProps {
   remittanceFee: string
   cableFee: string
   errorMessage?: string
+  isLoadingOfficialRate: boolean
+  officialRateMetadata: LoadExchangeRatesMetadata | null
+  officialRateErrorMessage: string | null
+  officialRateWarningMessage: string | null
   onCurrencyChange: (code: CurrencyCode) => void
   onForeignAmountChange: (value: string) => void
   onBaseRateChange: (value: string) => void
@@ -19,6 +27,7 @@ interface RemittanceFormProps {
   onPreferentialRateChange: (value: string) => void
   onRemittanceFeeChange: (value: string) => void
   onCableFeeChange: (value: string) => void
+  onLoadOfficialRate: () => void
   onSubmit: () => void
   onReset: () => void
 }
@@ -38,6 +47,10 @@ export function RemittanceForm({
   remittanceFee,
   cableFee,
   errorMessage,
+  isLoadingOfficialRate,
+  officialRateMetadata,
+  officialRateErrorMessage,
+  officialRateWarningMessage,
   onCurrencyChange,
   onForeignAmountChange,
   onBaseRateChange,
@@ -45,6 +58,7 @@ export function RemittanceForm({
   onPreferentialRateChange,
   onRemittanceFeeChange,
   onCableFeeChange,
+  onLoadOfficialRate,
   onSubmit,
   onReset,
 }: RemittanceFormProps) {
@@ -93,22 +107,18 @@ export function RemittanceForm({
           />
         </div>
 
-        <div>
-          <label htmlFor="remittanceBaseRate" className={labelClassName}>
-            전신환 매매기준율
-          </label>
-          <input
-            id="remittanceBaseRate"
-            type="text"
-            inputMode="decimal"
-            placeholder="예: 1,340.50"
-            className={inputClassName}
-            value={baseRate}
-            onChange={(event) =>
-              onBaseRateChange(formatNumericInput(event.target.value))
-            }
-          />
-        </div>
+        <OfficialRateField
+          inputId="remittanceBaseRate"
+          label="전신환 매매기준율"
+          currencyCode={currencyCode}
+          baseRate={baseRate}
+          isLoadingOfficialRate={isLoadingOfficialRate}
+          officialRateMetadata={officialRateMetadata}
+          officialRateErrorMessage={officialRateErrorMessage}
+          officialRateWarningMessage={officialRateWarningMessage}
+          onBaseRateChange={onBaseRateChange}
+          onLoadOfficialRate={onLoadOfficialRate}
+        />
 
         <div>
           <label htmlFor="remittanceSpreadRate" className={labelClassName}>

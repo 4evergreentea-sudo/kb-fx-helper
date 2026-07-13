@@ -2,6 +2,10 @@ import type { FormEvent } from 'react'
 import { CURRENCIES, SUPPORTED_CURRENCY_CODES } from '../../entities/currency'
 import type { CurrencyCode } from '../../entities/currency'
 import type { TransactionType } from '../../features/calculate-exchange'
+import {
+  OfficialRateField,
+  type LoadExchangeRatesMetadata,
+} from '../../features/load-exchange-rates'
 import { formatNumericInput } from '../../shared/lib'
 
 interface ExchangeFormProps {
@@ -12,12 +16,17 @@ interface ExchangeFormProps {
   transactionType: TransactionType
   amount: string
   errorMessage?: string
+  isLoadingOfficialRate: boolean
+  officialRateMetadata: LoadExchangeRatesMetadata | null
+  officialRateErrorMessage: string | null
+  officialRateWarningMessage: string | null
   onCurrencyChange: (code: CurrencyCode) => void
   onBaseRateChange: (value: string) => void
   onSpreadRateChange: (value: string) => void
   onPreferentialRateChange: (value: string) => void
   onTransactionTypeChange: (type: TransactionType) => void
   onAmountChange: (value: string) => void
+  onLoadOfficialRate: () => void
   onSubmit: () => void
   onReset: () => void
 }
@@ -36,12 +45,17 @@ export function ExchangeForm({
   transactionType,
   amount,
   errorMessage,
+  isLoadingOfficialRate,
+  officialRateMetadata,
+  officialRateErrorMessage,
+  officialRateWarningMessage,
   onCurrencyChange,
   onBaseRateChange,
   onSpreadRateChange,
   onPreferentialRateChange,
   onTransactionTypeChange,
   onAmountChange,
+  onLoadOfficialRate,
   onSubmit,
   onReset,
 }: ExchangeFormProps) {
@@ -103,22 +117,18 @@ export function ExchangeForm({
           </div>
         </div>
 
-        <div>
-          <label htmlFor="baseRate" className={labelClassName}>
-            기준환율
-          </label>
-          <input
-            id="baseRate"
-            type="text"
-            inputMode="decimal"
-            placeholder="예: 1,340.50"
-            className={inputClassName}
-            value={baseRate}
-            onChange={(event) =>
-              onBaseRateChange(formatNumericInput(event.target.value))
-            }
-          />
-        </div>
+        <OfficialRateField
+          inputId="baseRate"
+          label="기준환율"
+          currencyCode={currencyCode}
+          baseRate={baseRate}
+          isLoadingOfficialRate={isLoadingOfficialRate}
+          officialRateMetadata={officialRateMetadata}
+          officialRateErrorMessage={officialRateErrorMessage}
+          officialRateWarningMessage={officialRateWarningMessage}
+          onBaseRateChange={onBaseRateChange}
+          onLoadOfficialRate={onLoadOfficialRate}
+        />
 
         <div>
           <label htmlFor="amount" className={labelClassName}>
