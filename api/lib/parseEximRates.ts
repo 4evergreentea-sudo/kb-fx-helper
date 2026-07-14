@@ -1,4 +1,4 @@
-import type { CurrencyCode } from '../../src/shared/model/index.ts'
+import type { CurrencyCode } from '../../src/shared/model/index.js'
 
 /** 한국수출입은행 API 원시 행 (api/lib 전용) */
 export interface EximRateRow {
