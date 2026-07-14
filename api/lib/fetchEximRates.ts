@@ -1,11 +1,12 @@
-import { OFFICIAL_EXCHANGE_RATES_SOURCE } from '../../src/shared/model/index.ts'
-import type { OfficialExchangeRates } from '../../src/shared/model/index.ts'
-import { buildLookbackDates, toBaseDate } from './kstDate.ts'
+import type { OfficialExchangeRates } from '../../src/shared/model/index.js'
+import { buildLookbackDates, toBaseDate } from './kstDate.js'
 import {
   hasSupportedRates,
   parseEximRates,
   type EximRateRow,
-} from './parseEximRates.ts'
+} from './parseEximRates.js'
+
+const OFFICIAL_EXCHANGE_RATES_SOURCE = '한국수출입은행'
 
 const EXIM_API_URL =
   'https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON'

@@ -1,11 +1,11 @@
 import {
   FetchEximRatesError,
   fetchEximRatesWithLookback,
-} from './lib/fetchEximRates.ts'
+} from './lib/fetchEximRates.js'
 import {
   getKstTodayYyyymmdd,
   isValidYyyymmdd,
-} from './lib/kstDate.ts'
+} from './lib/kstDate.js'
 
 const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600'
 
