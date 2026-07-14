@@ -16,10 +16,29 @@ export type ModuleReference = {
   runtime: boolean
 }
 
+export type StringConstDeclaration = {
+  name: string
+  value: string
+}
+
 function isStringLiteralModuleSpecifier(
   expression: ts.Expression,
 ): expression is ts.StringLiteral {
   return ts.isStringLiteral(expression)
+}
+
+function readStringInitializerValue(
+  initializer: ts.Expression,
+): string | null {
+  if (ts.isStringLiteral(initializer)) {
+    return initializer.text
+  }
+
+  if (ts.isNoSubstitutionTemplateLiteral(initializer)) {
+    return initializer.text
+  }
+
+  return null
 }
 
 function classifyImportDeclaration(
@@ -84,7 +103,7 @@ function classifyExportDeclaration(
 function classifyDynamicImport(
   node: ts.CallExpression,
 ): ModuleReference | null {
-  if (!ts.isImportKeyword(node.expression)) {
+  if (!ts.isImportCall(node)) {
     return null
   }
 
@@ -139,6 +158,49 @@ export function extractModuleReferences(
 
   visit(sourceFile)
   return references
+}
+
+export function extractTopLevelStringConstDeclarations(
+  source: string,
+  fileName = 'fixture.ts',
+): StringConstDeclaration[] {
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+  const declarations: StringConstDeclaration[] = []
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) {
+      continue
+    }
+
+    if ((statement.declarationList.flags & ts.NodeFlags.Const) === 0) {
+      continue
+    }
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) {
+        continue
+      }
+
+      const value = readStringInitializerValue(declaration.initializer)
+
+      if (value === null) {
+        continue
+      }
+
+      declarations.push({
+        name: declaration.name.text,
+        value,
+      })
+    }
+  }
+
+  return declarations
 }
 
 function isExternalOrBuiltinSpecifier(specifier: string): boolean {
@@ -209,6 +271,14 @@ describe('extractModuleReferences', () => {
     expect(references).toEqual([{ specifier: './lazy.js', runtime: true }])
   })
 
+  it('일반 함수 호출은 dynamic import로 탐지하지 않는다', () => {
+    const references = extractModuleReferences(
+      "const module = await loadModule('./lazy.js')",
+    )
+
+    expect(references).toEqual([])
+  })
+
   it('export ... from을 탐지한다', () => {
     const references = extractModuleReferences(
       "export { fetchEximRatesWithLookback } from './lib/fetchEximRates.js'",
@@ -246,6 +316,65 @@ describe('extractModuleReferences', () => {
   })
 })
 
+describe('extractTopLevelStringConstDeclarations', () => {
+  it("const SOURCE = '한국수출입은행'을 탐지한다", () => {
+    const declarations = extractTopLevelStringConstDeclarations(
+      "const SOURCE = '한국수출입은행'",
+    )
+
+    expect(declarations).toEqual([
+      { name: 'SOURCE', value: '한국수출입은행' },
+    ])
+  })
+
+  it('큰따옴표와 줄바꿈이 있어도 탐지한다', () => {
+    const declarations = extractTopLevelStringConstDeclarations(`
+      const SOURCE =
+        "한국수출입은행"
+    `)
+
+    expect(declarations).toEqual([
+      { name: 'SOURCE', value: '한국수출입은행' },
+    ])
+  })
+
+  it('타입 주석이 있어도 탐지한다', () => {
+    const declarations = extractTopLevelStringConstDeclarations(
+      "const SOURCE: string = '한국수출입은행'",
+    )
+
+    expect(declarations).toEqual([
+      { name: 'SOURCE', value: '한국수출입은행' },
+    ])
+  })
+
+  it('let 선언은 제외한다', () => {
+    const declarations = extractTopLevelStringConstDeclarations(
+      "let SOURCE = '한국수출입은행'",
+    )
+
+    expect(declarations).toEqual([])
+  })
+
+  it('숫자 initializer는 제외한다', () => {
+    const declarations = extractTopLevelStringConstDeclarations(
+      'const TIMEOUT = 8000',
+    )
+
+    expect(declarations).toEqual([])
+  })
+
+  it('함수 내부의 const는 제외한다', () => {
+    const declarations = extractTopLevelStringConstDeclarations(`
+      function run() {
+        const SOURCE = '한국수출입은행'
+      }
+    `)
+
+    expect(declarations).toEqual([])
+  })
+})
+
 describe('api operational import specifiers', () => {
   for (const file of OPERATIONAL_API_FILES) {
     it(`${file} uses .js import specifiers only`, () => {
@@ -272,10 +401,14 @@ describe('api operational import specifiers', () => {
   }
 
   it('fetchEximRates.ts defines OFFICIAL_EXCHANGE_RATES_SOURCE locally', () => {
-    const source = readOperationalSource('api/lib/fetchEximRates.ts')
-
-    expect(source).toContain(
-      "const OFFICIAL_EXCHANGE_RATES_SOURCE = '한국수출입은행'",
+    const declarations = extractTopLevelStringConstDeclarations(
+      readOperationalSource('api/lib/fetchEximRates.ts'),
+      'api/lib/fetchEximRates.ts',
     )
+
+    expect(declarations).toContainEqual({
+      name: 'OFFICIAL_EXCHANGE_RATES_SOURCE',
+      value: '한국수출입은행',
+    })
   })
 })
