@@ -37,7 +37,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-filesystem",
+        "@modelcontextprotocol/server-filesystem@2026.7.4",
         "${workspaceFolder}"
       ]
     },
@@ -50,6 +50,7 @@
 
 ### 설계 원칙
 
+- **filesystem MCP 버전을 `@2026.7.4`로 고정한다.** 팀원별 실행 코드 차이 방지, 최신 버전의 예기치 않은 변경 방지, 검증한 버전 재현을 위해 semver 태그를 명시한다.
 - **context7 API 키는 공용 설정의 필수 조건이 아니다.** 커밋되는 `mcp.json`에 `headers`나 `CONTEXT7_API_KEY`를 포함하지 않는다.
 - **절대 개인 경로를 하드코딩하지 않는다.** filesystem 루트는 `${workspaceFolder}`만 사용한다.
 - **앱용 `.env.local`은 Cursor MCP에서 자동 로드되지 않는다.** Vite/Supabase용 환경변수와 Cursor MCP 환경변수는 별도로 관리한다.
@@ -60,7 +61,7 @@
 
 1. 저장소를 clone하고 `kb-fx-helper` 디렉터리를 Cursor에서 워크스페이스 루트로 연다.
 2. [`.cursor/mcp.json`](../.cursor/mcp.json)이 존재하는지 확인한다.
-3. Node.js 18 이상이 설치되어 있는지 확인한다 (`filesystem` 서버가 `npx`로 실행됨).
+3. Node.js 20 이상이 설치되어 있는지 확인한다 (`filesystem` 서버가 `npx`로 실행됨).
 4. Command Palette → `Developer: Reload Window`로 MCP 설정을 반영한다.
 5. **Settings → Tools & MCP** (또는 Customize 사이드바)에서 `filesystem`, `context7` 서버가 Enabled인지 확인한다.
 6. 작업 단계별 MCP 사용 정책은 [`CUSTOM_MODES.md`](CUSTOM_MODES.md)를 따른다.
@@ -132,7 +133,7 @@ macOS/Linux 공용 `mcp.json`은 `command: "npx"`를 사용한다. Windows에서
     "/c",
     "npx",
     "-y",
-    "@modelcontextprotocol/server-filesystem",
+    "@modelcontextprotocol/server-filesystem@2026.7.4",
     "${workspaceFolder}"
   ]
 }
@@ -207,15 +208,15 @@ filesystem MCP는 읽기뿐 아니라 변경 도구도 제공한다.
 
 Agent 채팅에서 아래와 같이 요청할 수 있다.
 
-```
+```text
 Vitest 4의 test API 사용법을 context7로 조회해줘.
 ```
 
-```
+```text
 Supabase JS v2에서 RLS가 적용된 insert 패턴을 context7로 확인해줘.
 ```
 
-```
+```text
 React 19 use hook 공식 문서를 context7로 조회해줘.
 ```
 
@@ -228,7 +229,7 @@ React 19 use hook 공식 문서를 context7로 조회해줘.
 | 증상 | 확인 사항 | 조치 |
 |---|---|---|
 | MCP 서버가 목록에 없음 | `.cursor/mcp.json` 경로·JSON 문법 | 워크스페이스 루트가 `kb-fx-helper`인지 확인, JSON 유효성 검사 |
-| filesystem 시작 실패 | Node.js 버전, `npx` 가용성 | Node 18+ 설치, `npx -y @modelcontextprotocol/server-filesystem --help` 실행 |
+| filesystem 시작 실패 | Node.js 버전, `npx` 가용성 | Node 20+ 설치, `npx -y @modelcontextprotocol/server-filesystem@2026.7.4 --help` 실행 |
 | context7 연결 실패 | 네트워크, MCP Logs | 방화벽·프록시 확인, Output → MCP Logs 오류 메시지 확인 |
 | rate limit | context7 API 키 미설정 | §3의 선택적 API 키 설정 |
 | 허용 경로가 프로젝트 루트가 아님 | `list_allowed_directories` 결과 | `${workspaceFolder}` 확장 여부 확인, 필요 시 `"."` 대안 테스트 |

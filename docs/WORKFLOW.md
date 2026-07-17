@@ -110,13 +110,14 @@ flowchart TD
     Req[기능 요청] --> PlanMode["Plan\ncontext7만 · filesystem 미추가"]
     PlanMode --> Approve{사용자 승인}
     Approve -->|거절| PlanMode
-    Approve -->|승인| Test[TDD: 실패 테스트 작성]
+    Approve -->|승인| Branch["feat/* 또는 fix/*\n작업 브랜치 생성"]
+    Branch --> Test[TDD: 실패 테스트 작성]
     Test --> ImplMode["기본 Agent\nfilesystem + context7"]
     ImplMode --> Check["npm run check"]
     Check --> ReviewMode["Ask\nfilesystem 미추가"]
-    ReviewMode --> Branch["feat/* 작업 브랜치"] --> PR["Pull Request"]
+    ReviewMode --> PR["Pull Request"]
     PR --> CRB["CodeRabbit Review"] --> Fix["수정 반영"]
-    Fix --> CI["CI 통과"] --> Merge[Merge] --> Vercel["Vercel 자동 배포"]
+    Fix --> CI["CI 통과"] --> Merge["Squash merge"] --> Vercel["Vercel 자동 배포"]
     Fix -.실패 시 재검토.-> CRB
 ```
 
@@ -124,16 +125,16 @@ flowchart TD
 |---|---|---|
 | 계획 | **Plan** + 사람 | FSD 영향 분석, 변경 파일·구현 순서·테스트 계획을 문서화한다. **코드·설정 변경 금지**. context7만 MCP Servers에 추가 |
 | 승인 | 사람 | 계획을 검토하고 구현 범위를 확정한다 |
-| Test | Vitest(TDD) | 새 도메인/유스케이스는 실패하는 테스트를 먼저 작성한다 |
+| 작업 브랜치 | Git | 승인 직후 `feat/*` 또는 `fix/*` 브랜치를 생성한다. **새 기능·문서 기능 추가**는 `feat/*`, **버그·운영 장애 수정**은 `fix/*`. `main` 직접 커밋 금지 |
+| Test | Vitest(TDD) | 작업 브랜치에서 새 도메인/유스케이스의 실패하는 테스트를 먼저 작성한다 |
 | 구현 | **기본 Agent** + Cursor Rules + MCP | 승인된 계획 범위 내에서 `.cursor/rules/*.mdc` 기반으로 FSD 레이어별 코드를 작성한다. filesystem·context7 MCP 사용 |
 | `npm run check` | oxlint, `scripts/check-architecture.mjs`, `tsc -b`, Vitest, Vite build | 로컬에서 커밋 전 lint → FSD 아키텍처 검사 → 타입체크 → 테스트 → 빌드를 한 번에 실행한다 |
 | 리뷰 | **Ask** | FSD·보안·테스트 관점에서 이슈를 식별한다. **코드 수정 없이** 검토 결과만 작성 |
-| feat/* 작업 브랜치 | Git | `feat/*`, `fix/*` 접두사 브랜치에서 작업한다(`main` 직접 커밋 금지) |
 | Pull Request | GitHub | 변경 목적과 8장 DoD 체크리스트를 PR 본문에 기재한다 |
 | CodeRabbit Review | CodeRabbit(`.coderabbit.yaml`) | PR 생성 즉시 AI가 FSD 규칙 위반, public API 우회, 보안/CSV/Supabase 규칙 등을 1차 리뷰한다 |
 | 수정 반영 | **기본 Agent** | 리뷰 코멘트를 반영하고, 필요하면 CodeRabbit이 다시 리뷰한다(request changes workflow) |
 | CI 통과 | GitHub Actions(`.github/workflows/ci.yml`) | PR과 `main` push마다 `npm run check`를 실행해 통과해야 병합할 수 있다 |
-| Merge | GitHub | 리뷰 승인 + CI 통과 후 `main`에 병합한다(Squash merge) |
+| Merge | GitHub | 리뷰 승인 + CI 통과 후 `main`에 Squash merge한다 |
 | Vercel 자동 배포 | Vercel | `main` 병합 시 자동으로 프로덕션에 배포된다 |
 
 ### MCP 사용 시점
@@ -150,12 +151,20 @@ Plan / 기본 Agent / Ask 선택 절차·MCP 사용 정책·증빙 캡처는 [`C
 
 ## 5. Git 전략
 
+계획 승인 **직후** 작업 브랜치를 생성한 뒤, TDD·구현·리뷰·PR 순으로 진행한다. `main`에서 직접 커밋하지 않는다.
+
+| 브랜치 접두사 | 사용 시점 |
+|---|---|
+| `feat/*` | 새 기능, 문서 기능 추가 |
+| `fix/*` | 버그 수정, 운영 장애 수정 |
+
 | 단계 | 설명 | 규칙 |
 |---|---|---|
-| 1. feat 브랜치 | 작업 단위로 브랜치 생성 | `feat/기능명`, `fix/버그명` 접두사 사용, `main` 직접 커밋 금지 |
-| 2. Pull Request | 작업 완료 후 PR 생성 | 변경 목적과 8장 DoD 체크리스트를 PR 본문에 기재 |
-| 3. Review | CodeRabbit(AI) + 팀원 리뷰 | FSD 위반, 규칙 위반, 테스트 누락 여부 확인 |
-| 4. Merge | 승인 + CI(Vitest/Build) 통과 후 병합 | Squash merge, 병합 후 브랜치 삭제 |
+| 1. 작업 브랜치 | 승인 직후 `feat/*` 또는 `fix/*` 브랜치 생성 | `main` 직접 커밋 금지 |
+| 2. TDD·구현·리뷰 | 작업 브랜치에서 테스트·코드·Ask 리뷰 수행 | §4 AI 협업 Workflow 순서 준수 |
+| 3. Pull Request | 작업 완료 후 PR 생성 | 변경 목적과 8장 DoD 체크리스트를 PR 본문에 기재 |
+| 4. Review | CodeRabbit(AI) + 팀원 리뷰 | FSD 위반, 규칙 위반, 테스트 누락 여부 확인 |
+| 5. Merge | 승인 + CI(Vitest/Build) 통과 후 병합 | Squash merge, 병합 후 브랜치 삭제 |
 
 ## 6. 테스트 전략
 

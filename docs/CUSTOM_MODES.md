@@ -6,7 +6,7 @@
 
 이 문서는 Cursor **내장 작업 방식** 3종(계획·구현·리뷰)의 선택 절차, MCP 사용 정책, 단계별 시작 프롬프트 전문, 최종 보고서 증빙 목록을 정의한다.
 
-> **현재 Cursor UI:** Agent 입력창 추가 메뉴에 **Plan**, **Debug**, **Multitask**, **Ask**, **Skills**, **MCP Servers**가 표시된다. 별도의 **Add Custom Mode** 메뉴는 없다. 계획·구현·리뷰 역할 분리는 **Plan / 기본 Agent / Ask** 조합으로 수행한다.
+> 이 문서는 Agent 입력창에서 **Plan**, **Ask**, **MCP Servers** 등의 항목이 제공되는 Cursor UI를 기준으로 한다. Cursor 버전에 따라 메뉴 이름과 위치가 달라질 수 있다. 별도의 Custom Mode 생성 UI가 제공되는 환경에서는 동일한 계획·구현·리뷰 역할과 MCP 권한 정책을 대응해 적용한다.
 
 ## 목차
 
@@ -22,7 +22,7 @@
 
 ## 1. 작업 방식 개요
 
-현재 설치 버전에서는 별도 Custom Mode UI 없이, Agent 입력창에서 **내장 작업 방식**을 선택해 단계별 역할을 분리한다.
+Agent 입력창에서 **내장 작업 방식**을 선택해 단계별 역할을 분리한다. 계획·구현·리뷰는 **Plan / 기본 Agent / Ask** 조합으로 수행한다.
 
 | 단계 | Cursor 작업 방식 | 역할 |
 |---|---|---|
@@ -92,7 +92,7 @@ filesystem MCP는 읽기뿐 아니라 `write_file`, `edit_file`, `move_file` 등
 
 ### 계획 단계
 
-```
+```text
 당신은 외환 창구 업무 도우미(KB FX Helper) 프로젝트의 계획 전담 Agent입니다.
 
 ## 역할
@@ -124,7 +124,7 @@ filesystem MCP는 읽기뿐 아니라 `write_file`, `edit_file`, `move_file` 등
 
 ### 구현 단계
 
-```
+```text
 당신은 외환 창구 업무 도우미(KB FX Helper) 프로젝트의 구현 전담 Agent입니다.
 
 ## 역할
@@ -150,7 +150,7 @@ filesystem MCP는 읽기뿐 아니라 `write_file`, `edit_file`, `move_file` 등
 
 ### 리뷰 단계
 
-```
+```text
 당신은 외환 창구 업무 도우미(KB FX Helper) 프로젝트의 코드 리뷰 전담 Agent입니다.
 
 ## 역할
@@ -181,25 +181,30 @@ filesystem MCP는 읽기뿐 아니라 `write_file`, `edit_file`, `move_file` 등
 
 ## 6. 권장 워크플로
 
+승인 직후 작업 브랜치를 생성한 뒤 구현한다. **새 기능·문서 기능 추가**는 `feat/*`, **버그·운영 장애 수정**은 `fix/*`를 사용한다.
+
 ```mermaid
 flowchart TD
     Start[기능 요청] --> PlanMode["Plan\ncontext7만 추가"]
     PlanMode --> Approve{사용자 승인}
     Approve -->|거절| PlanMode
-    Approve -->|승인| ImplMode["기본 Agent\nfilesystem + context7"]
+    Approve -->|승인| Branch["feat/* 또는 fix/*\n작업 브랜치 생성"]
+    Branch --> ImplMode["기본 Agent\nfilesystem + context7"]
     ImplMode --> Check["npm run check"]
     Check --> ReviewMode["Ask\nfilesystem 미추가"]
     ReviewMode --> Evidence[증빙 캡처]
-    Evidence --> PR[feat Branch / PR]
+    Evidence --> PR[Pull Request]
 ```
 
 | 단계 | Cursor 방식 | MCP (대화별 추가) |
 |---|---|---|
 | 1. 계획 | Plan | context7만, filesystem 미추가 |
-| 2. 구현 | 기본 Agent | filesystem + context7 |
-| 3. 검증 | `npm run check` | — |
-| 4. 리뷰 | Ask | context7 필요 시, filesystem 미추가 |
-| 5. 협업 | GitHub PR + CodeRabbit | — |
+| 2. 작업 브랜치 | Git (`feat/*` 또는 `fix/*`) | — |
+| 3. 구현 | 기본 Agent | filesystem + context7 |
+| 4. 검증 | `npm run check` | — |
+| 5. 리뷰 | Ask | context7 필요 시, filesystem 미추가 |
+| 6. 증빙 | 캡처 | — |
+| 7. 협업 | Pull Request | — |
 
 ---
 
