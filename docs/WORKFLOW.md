@@ -45,8 +45,9 @@ flowchart LR
 | 1. 리서치 | **NotebookLM** | 외환·환율 도메인 자료를 업로드해 학습·요약, PRD 작성 전 배경지식 확보 | 도메인 요약 노트 |
 | 1. 리서치 | **Genspark** | 유사 서비스 조사, 문서 초안(PRD/README) 생성 보조 | PRD/README 초안 |
 | 2. 구현 | **Cursor** | `.cursor/rules/*.mdc` 기반 AI 페어 프로그래밍으로 FSD 레이어별 코드 작성 | 소스 코드(entities~app) |
-| 2. 구현 | **MCP** | 외부 문서·서비스(Supabase 스키마 등) 컨텍스트를 Cursor에 연결 | Cursor 내 실시간 컨텍스트 |
-| 3. 협업 | **GitHub** | feature 브랜치/PR로 변경 공유, Actions로 CI 실행 | Pull Request |
+| 2. 구현 | **MCP** | 외부 문서·프로젝트 파일 컨텍스트를 Cursor에 연결 ([`MCP.md`](MCP.md)) | Cursor 내 실시간 컨텍스트 |
+| 2. 구현 | **Plan / Agent / Ask** | 계획·구현·리뷰 단계별 작업 방식 분리 ([`CUSTOM_MODES.md`](CUSTOM_MODES.md)) | 단계별 AI 행동 제약 |
+| 3. 협업 | **GitHub** | feat 브랜치/PR로 변경 공유, Actions로 CI 실행 | Pull Request |
 | 3. 협업 | **CodeRabbit** | PR에 대한 AI 자동 코드 리뷰(FSD 위반, 규칙 위반 탐지) | 리뷰 코멘트 |
 | 3. 협업 | **Vitest** | TDD 기반 단위 테스트, CI에서 자동 실행 | 테스트 리포트 |
 | 4. 배포 | **Vercel** | main 병합 시 프론트엔드 자동 배포 | 배포된 웹 앱 |
@@ -78,9 +79,11 @@ flowchart LR
 | React | UI 라이브러리. 함수형 컴포넌트 + Hooks만 사용 |
 | Tailwind CSS v4 | 유틸리티 클래스 기반 스타일링, 별도 CSS 파일 최소화 |
 | FSD | `entities/shared/features/widgets/pages/app` 레이어 구조, 폴더가 곧 의존 규칙 |
-| Git | `main` 단일 보호 브랜치 + `feature/*` 작업 브랜치 |
+| Git | `main` 기준 브랜치 + `feat/*`·`fix/*` 작업 브랜치 + PR 기반 병합 |
+| MCP | [`.cursor/mcp.json`](../.cursor/mcp.json) — `filesystem`(프로젝트 파일), `context7`(라이브러리 문서). 초기 설정은 [`MCP.md`](MCP.md) 참고 |
+| 작업 방식 | Cursor 내장 **Plan**(계획) · **기본 Agent**(구현) · **Ask**(리뷰) + MCP Servers 대화별 추가. 설정은 [`CUSTOM_MODES.md`](CUSTOM_MODES.md) 참고 |
 
-> 위 4가지는 `.cursor/rules/00-architecture.mdc`, `20-ui.mdc`에 규칙으로 등록되어 있으며, MCP는 개발 중 필요한 외부 컨텍스트(문서, 스키마 등)를 Cursor에 실시간으로 연결하는 역할을 한다.
+> 위 항목 중 React/Tailwind/FSD/Git은 `.cursor/rules/00-architecture.mdc`, `20-ui.mdc`에 규칙으로 등록되어 있다. MCP는 개발 중 외부·프로젝트 컨텍스트를 연결하고, Plan / 기본 Agent / Ask 조합으로 단계별 Agent 권한(특히 filesystem MCP on/off)을 분리한다.
 
 ## 3. 구현 순서
 
@@ -103,37 +106,65 @@ graph LR
 ## 4. AI 협업 Workflow
 
 ```mermaid
-flowchart LR
-    Plan[Plan] --> Test[Test] --> Implement[Implement] --> Check["npm run check"]
-    Check --> Branch["Feature Branch"] --> PR["Pull Request"] --> CRB["CodeRabbit Review"]
-    CRB --> Fix["수정 반영"] --> CI["CI 통과"] --> Merge[Merge] --> Vercel["Vercel 자동 배포"]
+flowchart TD
+    Req[기능 요청] --> PlanMode["Plan\ncontext7만 · filesystem 미추가"]
+    PlanMode --> Approve{사용자 승인}
+    Approve -->|거절| PlanMode
+    Approve -->|승인| Branch["feat/* 또는 fix/*\n작업 브랜치 생성"]
+    Branch --> Test[TDD: 실패 테스트 작성]
+    Test --> ImplMode["기본 Agent\nfilesystem + context7"]
+    ImplMode --> Check["npm run check"]
+    Check --> ReviewMode["Ask\nfilesystem 미추가"]
+    ReviewMode --> PR["Pull Request"]
+    PR --> CRB["CodeRabbit Review"] --> Fix["수정 반영"]
+    Fix --> CI["CI 통과"] --> Merge["Squash merge"] --> Vercel["Vercel 자동 배포"]
     Fix -.실패 시 재검토.-> CRB
 ```
 
 | 단계 | 도구/명령 | 설명 |
 |---|---|---|
-| Plan | Cursor + 사람 | 요구사항을 분석해 변경 범위, 타입 구조, migration 방식을 먼저 계획하고 승인받는다 |
-| Test | Vitest(TDD) | 새 도메인/유스케이스는 실패하는 테스트를 먼저 작성한다 |
-| Implement | Cursor Rules + MCP | `.cursor/rules/*.mdc` 기반으로 FSD 레이어별 코드를 작성한다 |
+| 계획 | **Plan** + 사람 | FSD 영향 분석, 변경 파일·구현 순서·테스트 계획을 문서화한다. **코드·설정 변경 금지**. context7만 MCP Servers에 추가 |
+| 승인 | 사람 | 계획을 검토하고 구현 범위를 확정한다 |
+| 작업 브랜치 | Git | 승인 직후 `feat/*` 또는 `fix/*` 브랜치를 생성한다. **새 기능·문서 기능 추가**는 `feat/*`, **버그·운영 장애 수정**은 `fix/*`. `main` 직접 커밋 금지 |
+| Test | Vitest(TDD) | 작업 브랜치에서 새 도메인/유스케이스의 실패하는 테스트를 먼저 작성한다 |
+| 구현 | **기본 Agent** + Cursor Rules + MCP | 승인된 계획 범위 내에서 `.cursor/rules/*.mdc` 기반으로 FSD 레이어별 코드를 작성한다. filesystem·context7 MCP 사용 |
 | `npm run check` | oxlint, `scripts/check-architecture.mjs`, `tsc -b`, Vitest, Vite build | 로컬에서 커밋 전 lint → FSD 아키텍처 검사 → 타입체크 → 테스트 → 빌드를 한 번에 실행한다 |
-| Feature Branch | Git | `feature/*`, `fix/*` 접두사 브랜치에서 작업한다(`main` 직접 커밋 금지) |
+| 리뷰 | **Ask** | FSD·보안·테스트 관점에서 이슈를 식별한다. **코드 수정 없이** 검토 결과만 작성 |
 | Pull Request | GitHub | 변경 목적과 8장 DoD 체크리스트를 PR 본문에 기재한다 |
 | CodeRabbit Review | CodeRabbit(`.coderabbit.yaml`) | PR 생성 즉시 AI가 FSD 규칙 위반, public API 우회, 보안/CSV/Supabase 규칙 등을 1차 리뷰한다 |
-| 수정 반영 | Cursor | 리뷰 코멘트를 반영하고, 필요하면 CodeRabbit이 다시 리뷰한다(request changes workflow) |
+| 수정 반영 | **기본 Agent** | 리뷰 코멘트를 반영하고, 필요하면 CodeRabbit이 다시 리뷰한다(request changes workflow) |
 | CI 통과 | GitHub Actions(`.github/workflows/ci.yml`) | PR과 `main` push마다 `npm run check`를 실행해 통과해야 병합할 수 있다 |
-| Merge | GitHub | 리뷰 승인 + CI 통과 후 `main`에 병합한다(Squash merge) |
+| Merge | GitHub | 리뷰 승인 + CI 통과 후 `main`에 Squash merge한다 |
 | Vercel 자동 배포 | Vercel | `main` 병합 시 자동으로 프로덕션에 배포된다 |
+
+### MCP 사용 시점
+
+| 작업 단계 | Cursor 방식 | filesystem MCP | context7 MCP | 용도 |
+|---|---|---|---|---|
+| 계획 | Plan | 대화에 미추가 | 추가 | 라이브러리·API 문서 조회로 계획 정확도 향상 |
+| 구현 | 기본 Agent | 추가 | 추가 | 프로젝트 파일 읽기·쓰기 + 문서 조회 |
+| 리뷰 | Ask | 대화에 미추가 | 필요 시 추가 | 근거 확인용 문서 조회만 |
+
+Plan / 기본 Agent / Ask 선택 절차·MCP 사용 정책·증빙 캡처는 [`CUSTOM_MODES.md`](CUSTOM_MODES.md)를, MCP 서버 설정·연결 확인은 [`MCP.md`](MCP.md)를 참고한다.
 
 전체 도구 체인(NotebookLM~Supabase/Vercel)에서의 위치는 상단 [한눈에 보는 AI 협업 Workflow](#한눈에-보는-ai-협업-workflow) 표를 참고한다.
 
 ## 5. Git 전략
 
+계획 승인 **직후** 작업 브랜치를 생성한 뒤, TDD·구현·리뷰·PR 순으로 진행한다. `main`에서 직접 커밋하지 않는다.
+
+| 브랜치 접두사 | 사용 시점 |
+|---|---|
+| `feat/*` | 새 기능, 문서 기능 추가 |
+| `fix/*` | 버그 수정, 운영 장애 수정 |
+
 | 단계 | 설명 | 규칙 |
 |---|---|---|
-| 1. feature 브랜치 | 작업 단위로 브랜치 생성 | `feature/기능명`, `fix/버그명` 접두사 사용, `main` 직접 커밋 금지 |
-| 2. Pull Request | 작업 완료 후 PR 생성 | 변경 목적과 8장 DoD 체크리스트를 PR 본문에 기재 |
-| 3. Review | CodeRabbit(AI) + 팀원 리뷰 | FSD 위반, 규칙 위반, 테스트 누락 여부 확인 |
-| 4. Merge | 승인 + CI(Vitest/Build) 통과 후 병합 | Squash merge, 병합 후 브랜치 삭제 |
+| 1. 작업 브랜치 | 승인 직후 `feat/*` 또는 `fix/*` 브랜치 생성 | `main` 직접 커밋 금지 |
+| 2. TDD·구현·리뷰 | 작업 브랜치에서 테스트·코드·Ask 리뷰 수행 | §4 AI 협업 Workflow 순서 준수 |
+| 3. Pull Request | 작업 완료 후 PR 생성 | 변경 목적과 8장 DoD 체크리스트를 PR 본문에 기재 |
+| 4. Review | CodeRabbit(AI) + 팀원 리뷰 | FSD 위반, 규칙 위반, 테스트 누락 여부 확인 |
+| 5. Merge | 승인 + CI(Vitest/Build) 통과 후 병합 | Squash merge, 병합 후 브랜치 삭제 |
 
 ## 6. 테스트 전략
 
