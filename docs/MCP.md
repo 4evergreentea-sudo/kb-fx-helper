@@ -55,6 +55,14 @@
 - **절대 개인 경로를 하드코딩하지 않는다.** filesystem 루트는 `${workspaceFolder}`만 사용한다.
 - **앱용 `.env.local`은 Cursor MCP에서 자동 로드되지 않는다.** Vite/Supabase용 환경변수와 Cursor MCP 환경변수는 별도로 관리한다.
 
+### 버전 고정 정책 (`@2026.7.4`)
+
+- `@modelcontextprotocol/server-filesystem@2026.7.4`는 **2026-07-17 현재 이 프로젝트의 macOS Cursor 환경에서 실제 검증한 버전**이다.
+- 검증 시 filesystem 서버가 정상 활성화되고 **14개 도구가 로드됨**을 확인했다.
+- `list_allowed_directories` 결과가 **`kb-fx-helper` 프로젝트 루트로 제한**됨을 확인했다.
+- 팀 실행 재현성을 위해 최신 버전을 자동 추종하지 않고 **검증된 버전을 고정**한다.
+- 향후 버전 업그레이드는 **MCP 연결, 도구 로드, `list_allowed_directories` 접근 범위**를 다시 검증한 뒤 수행한다.
+
 ---
 
 ## 2. 팀 온보딩

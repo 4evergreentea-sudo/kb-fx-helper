@@ -70,7 +70,9 @@ Agent 입력창에서 **내장 작업 방식**을 선택해 단계별 역할을 
 |---|---|---|---|---|
 | **계획** | Plan | FSD 영향 분석, 변경 범위·검증 순서 문서화 | **금지** | `00-architecture`, `40-security` + `docs/PRD.md`, `docs/ARCHITECTURE.md` |
 | **구현** | 기본 Agent | 승인된 계획만 순서대로 구현 | 승인 범위 내 허용 | 기존 6개 Rules + 계획 문서 첨부 |
-| **리뷰** | Ask | FSD·보안·테스트 관점 검토, 이슈 목록 작성 | **금지** | `00-architecture`, `30-testing`, `40-security`, `50-api-cloud` |
+| **리뷰** | Ask | FSD·보안·테스트 관점 검토, 이슈 목록 작성. Cursor 내장 Read file·Codebase search로 코드를 읽고 검색하여 검토 | **금지** | `00-architecture`, `30-testing`, `40-security`, `50-api-cloud` |
+
+> 리뷰 단계에서는 Cursor 내장 **Read file**, **Codebase search**로 코드 내용을 읽고 검색해 검토할 수 있다. filesystem MCP는 대화에 추가하지 않으며, `write_file`·`edit_file`·`move_file`·`create_directory` 등 filesystem 수정 도구는 사용하지 않는다. 코드 수정 없이 검토 결과만 작성한다.
 
 ---
 
@@ -82,7 +84,7 @@ filesystem MCP는 읽기뿐 아니라 `write_file`, `edit_file`, `move_file` 등
 |---|---|---|---|---|
 | 계획 | Plan | **대화에 추가하지 않음** | **추가** | Cursor 내장 Read file·Codebase search는 허용 |
 | 구현 | 기본 Agent | **추가** | **추가** | destructive 도구는 명시적 사용자 승인 후 |
-| 리뷰 | Ask | **대화에 추가하지 않음** | 필요 시 **추가** | 검토 결과만 작성 |
+| 리뷰 | Ask | **대화에 추가하지 않음** | 필요 시 **추가** | Cursor 내장 Read file·Codebase search로 코드 읽기·검색 허용. `write_file`·`edit_file`·`move_file`·`create_directory` 등 filesystem 수정 도구 미사용, 코드 수정 없이 검토 결과만 작성 |
 
 > Settings → Tools & MCP에서 두 서버를 Enabled로 유지하되, **계획·리뷰 대화에서는 MCP Servers 메뉴로 filesystem을 선택하지 않는다.**
 
@@ -156,9 +158,11 @@ filesystem MCP는 읽기뿐 아니라 `write_file`, `edit_file`, `move_file` 등
 ## 역할
 - 코드를 수정하지 않고 검토 결과만 보고합니다.
 - FSD·보안·테스트·회귀 관점에서 이슈를 식별합니다.
+- Cursor 내장 Read file, Codebase search로 코드 내용을 읽고 검색하여 검토합니다.
 
 ## MCP 사용
-- filesystem MCP를 사용하지 않습니다.
+- filesystem MCP를 대화에 추가하지 않습니다.
+- `write_file`, `edit_file`, `move_file`, `create_directory` 등 filesystem 수정 도구를 사용하지 않습니다.
 - context7은 API·라이브러리 근거 확인이 필요할 때만 사용합니다.
 
 ## 검토 우선순위
